@@ -1,0 +1,128 @@
+services:
+  # ============================================================
+  #  POSTGRES - banco de dados (memoria das conversas + n8n)
+  # ============================================================
+  postgres:
+    image: postgres:16
+    container_name: postgres
+    restart: always
+    environment:
+      - POSTGRES_USER=${POSTGRES_USER}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
+      - POSTGRES_DB=${POSTGRES_DB}
+    ports:
+      # So no localhost. 5433 no host para nao brigar com um Postgres
+      # ja instalado na maquina.
+      - "127.0.0.1:5433:5432"
+    volumes:
+      - ./postgres-data:/var/lib/postgresql/data
+      # Na primeira subida (pasta postgres-data vazia) cria as tabelas do agente.
+      - ./sql/init:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ============================================================
+  #  WAHA - conector do WhatsApp
+  # ============================================================
+  waha:
+    image: devlikeapro/waha:latest
+    container_name: waha
+    restart: always
+    ports:
+      # So localhost. O n8n fala com o WAHA por dentro da rede do Docker
+      # (http://waha:3000), entao fechar a porta do host nao afeta o fluxo —
+      # tira apenas o gateway do alcance de qualquer aparelho da rede local.
+      - "127.0.0.1:3000:3000"
+    environment:
+      - WAHA_DASHBOARD_USERNAME=${WAHA_DASHBOARD_USERNAME}
+      - WAHA_DASHBOARD_PASSWORD=${WAHA_DASHBOARD_PASSWORD}
+      - WHATSAPP_API_KEY=${WHATSAPP_API_KEY}
+      - WHATSAPP_HOOK_URL=http://n8n:5678/webhook/whatsapp
+      # message.any = TODAS as mensagens, inclusive as enviadas do proprio numero.
+      # E isso que permite detectar quando um atendente humano assume a conversa.
+      - WHATSAPP_HOOK_EVENTS=message.any
+      - WHATSAPP_START_SESSION=default
+      - WHATSAPP_DEFAULT_ENGINE=NOWEB
+    volumes:
+      - ./waha-sessions:/app/.sessions
+
+  # ============================================================
+  #  AUDIOS - servidor interno que hospeda as mensagens de voz.
+  #  O Waha busca os arquivos por http://audios/nome.ogg
+  #  (nao fica exposto na internet, so na rede interna do Docker)
+  # ============================================================
+  audios:
+    image: nginx:alpine
+    container_name: audios
+    restart: always
+    ports:
+      # painel do CRM em http://localhost:8081/painel/ (so na maquina local)
+      - "127.0.0.1:8081:80"
+    volumes:
+      - ./audios:/usr/share/nginx/html:ro
+      - ./painel:/painel:ro
+      - ./nginx-painel.conf:/etc/nginx/conf.d/default.conf:ro
+
+  # ============================================================
+  #  N8N - onde fica o fluxo (o "cerebro" que liga tudo)
+  # ============================================================
+  n8n:
+    image: n8nio/n8n:2.36.7
+    container_name: n8n
+    restart: always
+    ports:
+      # So localhost, mesma razao: o WAHA entrega o webhook por dentro da rede
+      # do Docker (http://n8n:5678/webhook/...), nao pelo IP da maquina.
+      - "127.0.0.1:5678:5678"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      - N8N_HOST=localhost
+      - N8N_PORT=5678
+      - N8N_PROTOCOL=http
+      # N8N_WEBHOOK_URL substitui o antigo WEBHOOK_URL (depreciado na v2).
+      - N8N_WEBHOOK_URL=http://localhost:5678/
+      # Teto de tempo por execucao. O fluxo normal leva ~15s; sem esse teto
+      # uma execucao travada ficava "running" para sempre e ia acumulando.
+      - EXECUTIONS_TIMEOUT=300
+      - EXECUTIONS_TIMEOUT_MAX=600
+      # Code node roda em processo separado (task runner). Sem esse limite
+      # um travamento la dentro segurava a mensagem por 5 minutos.
+      - N8N_RUNNERS_TASK_TIMEOUT=60
+      # Pool do banco: o padrao (2) e apertado para um fluxo com memoria
+      # Postgres + varios nos SQL atendendo mensagens ao mesmo tempo.
+      - DB_POSTGRESDB_POOL_SIZE=10
+      - GENERIC_TIMEZONE=America/Sao_Paulo
+      # Limite de memoria do motor JS. Sem isso o n8n cresce sem freio
+      # e o processo morre no meio da execucao (WorkflowCrashedError).
+      - NODE_OPTIONS=--max-old-space-size=1536
+      # Nao guardar payload das execucoes que deram certo: era o que
+      # mais inflava a memoria e o banco a cada mensagem.
+      - EXECUTIONS_DATA_SAVE_ON_SUCCESS=none
+      - EXECUTIONS_DATA_SAVE_ON_ERROR=all
+      - EXECUTIONS_DATA_SAVE_ON_PROGRESS=false
+      - EXECUTIONS_DATA_PRUNE=true
+      - EXECUTIONS_DATA_MAX_AGE=72
+      - N8N_PAYLOAD_SIZE_MAX=8
+      - DB_TYPE=postgresdb
+      - DB_POSTGRESDB_HOST=postgres
+      - DB_POSTGRESDB_PORT=5432
+      - DB_POSTGRESDB_DATABASE=${POSTGRES_DB}
+      - DB_POSTGRESDB_USER=${POSTGRES_USER}
+      - DB_POSTGRESDB_PASSWORD=${POSTGRES_PASSWORD}
+      # O fluxo le a chave do WAHA daqui ({{ $env.WHATSAPP_API_KEY }}).
+      - WHATSAPP_API_KEY=${WHATSAPP_API_KEY}
+      - N8N_BLOCK_ENV_ACCESS_IN_NODE=false
+    deploy:
+      resources:
+        limits:
+          memory: 2G
+        reservations:
+          memory: 1G
+    volumes:
+      - ./n8n-data:/home/node/.n8n
+

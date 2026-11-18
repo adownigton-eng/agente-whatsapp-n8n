@@ -1,0 +1,13 @@
+# Senhas e chaves
+.env
+.env.*
+!.env.example
+
+# Dados dos containers (banco, n8n, sessao do WhatsApp)
+postgres-data/
+n8n-data/
+waha-sessions/
+
+# Audios de cada um (so o guia vai para o git)
+audios/*
+!audios/LEIA-ME.md

@@ -1,0 +1,1871 @@
+{
+  "name": "Agente de IA no WhatsApp",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "whatsapp",
+        "options": {}
+      },
+      "id": "0084f3d6-3fc0-4f30-abc9-82d16e50d8ef",
+      "name": "Recebe do Waha",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        -720,
+        240
+      ],
+      "webhookId": "whatsapp"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Extrai tudo com valores seguros. Nunca quebra.\r\nconst b = $json.body || {};\r\nconst p = b.payload || {};\r\nconst media = p.media || {};\r\nconst mediaUrl = media.url ? String(media.url).replace('localhost:3000','waha:3000') : '';\r\nconst mime = String(media.mimetype || '');\r\nconst ehAudio = !!mediaUrl && mime.indexOf('audio') === 0;\r\n\r\n// Video, imagem, figurinha, documento, localizacao... chegam sem texto.\r\n// Texto vazio derruba o agente (a IA recusa mensagem vazia), entao a midia\r\n// vira uma descricao curta. O agente nao le o arquivo: so sabe que chegou.\r\nlet texto = String(p.body || '').trim();\r\nif (!texto && !ehAudio) {\r\n  let tipo = 'uma mensagem sem texto';\r\n  if (mime.indexOf('video') === 0) tipo = 'um video';\r\n  else if (mime === 'image/webp') tipo = 'uma figurinha';\r\n  else if (mime.indexOf('image') === 0) tipo = 'uma imagem';\r\n  else if (mime) tipo = 'um arquivo';\r\n  else if (p.hasMedia) tipo = 'um arquivo de midia';\r\n  texto = '[O cliente enviou ' + tipo + '. Voce nao consegue ver videos, imagens nem arquivos: '\r\n    + 'diga isso com gentileza e peca para ele escrever o que precisa.]';\r\n}\r\n\r\nreturn [{ json: {\r\n  chatId: p.from || '',\r\n  toId: p.to || '',\r\n  fromMe: p.fromMe === true,\r\n  source: p.source || '',\r\n  ehAudio: ehAudio,\r\n  mediaUrl: mediaUrl,\r\n  texto: texto\r\n}}];\r\n"
+      },
+      "id": "76bda598-e3d2-455c-ae4f-e8fe465b335b",
+      "name": "Extrai dados",
+      "type": "n8n-nodes-base.code",
+      "position": [
+        -512,
+        240
+      ],
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 1
+          },
+          "conditions": [
+            {
+              "id": "fm",
+              "leftValue": "={{ $json.fromMe }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "c4046173-e0d8-49d3-9e54-f196cb3c0496",
+      "name": "Saiu do nosso numero?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        -320,
+        240
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 1
+          },
+          "conditions": [
+            {
+              "id": "src",
+              "leftValue": "={{ $json.source }}",
+              "rightValue": "app",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "01a72fdb-fdbd-4fcb-ac59-7d2dd10f7e7e",
+      "name": "Foi humano (app)?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        -96,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "INSERT INTO pausa_humana (chat_id, motivo)\nSELECT t.alvo, 'Atendente humano assumiu' FROM (\n  SELECT coalesce(NULLIF('{{ $json.toId }}',''), NULLIF('{{ $json.chatId }}','')) AS alvo\n) t\nWHERE t.alvo IS NOT NULL AND t.alvo NOT LIKE '%@g.us'\nON CONFLICT (chat_id) DO UPDATE SET pausado_em = now(), motivo = EXCLUDED.motivo;",
+        "options": {}
+      },
+      "id": "4bc8548b-dae2-477c-a32e-0e1e9c644716",
+      "name": "PAUSA (humano assumiu)",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [
+        128,
+        0
+      ],
+      "credentials": {
+        "postgres": {
+          "name": "Postgres account"
+        }
+      },
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 1
+          },
+          "conditions": [
+            {
+              "id": "au",
+              "leftValue": "={{ $json.ehAudio }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "a13cb0c9-9903-437b-99ce-ccb9f244b53e",
+      "name": "Eh audio?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        -96,
+        432
+      ]
+    },
+    {
+      "parameters": {
+        "url": "={{ $json.mediaUrl }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "X-Api-Key",
+              "value": "={{ $env.WHATSAPP_API_KEY }}"
+            }
+          ]
+        },
+        "options": {
+          "response": {
+            "response": {
+              "responseFormat": "file"
+            }
+          },
+          "timeout": 20000
+        }
+      },
+      "id": "1c8608f8-4f8d-448b-aae0-75defc51cf7d",
+      "name": "Baixa audio",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        128,
+        320
+      ],
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "resource": "audio",
+        "modelId": "models/gemini-3.6-flash",
+        "inputType": "binary",
+        "options": {}
+      },
+      "id": "0174bd47-4075-4016-9e02-f21577033f53",
+      "name": "Transcreve audio",
+      "type": "@n8n/n8n-nodes-langchain.googleGemini",
+      "typeVersion": 1,
+      "position": [
+        336,
+        320
+      ],
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 4000,
+      "credentials": {
+        "googlePalmApi": {
+          "name": "Google Gemini(PaLM) Api account"
+        }
+      },
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "jsCode": "// Caminho AUDIO: usa a transcricao e recupera o chatId original.\nconst tr = $json || {};\nconst t = tr.text || tr.content || tr.output || tr.transcription || '';\nconst o = $('Extrai dados').first().json;\nreturn [{ json: {\n  chatId: o.chatId,\n  texto: ((t && String(t).trim()) ? String(t).trim() : '[o cliente enviou um audio que nao foi possivel entender]').split('$txt\n}}];).join('')\n}}];"
+      },
+      "id": "baf3d189-6cd3-42ff-8f72-d6f6a7cf02a6",
+      "name": "Audio vira texto",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        528,
+        320
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Caminho TEXTO: repassa o que veio.\n// Remove o delimitador $txt$ para o texto do cliente nunca quebrar a query SQL.\nconst limpaSql = (s) => String(s || '').split('$txt$').join('');\nreturn [{ json: { chatId: $json.chatId || '', texto: limpaSql($json.texto) } }];"
+      },
+      "id": "a74fad87-266d-4ae6-b57d-6affef4721f8",
+      "name": "Texto normal",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        128,
+        560
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT '{{ $json.chatId }}' AS chat_id, $txt${{ $json.texto }}$txt$ AS texto, (CASE WHEN pausa_ativa('{{ $json.chatId }}') THEN 1 ELSE 0 END) AS pausado, (SELECT COUNT(*)::int FROM n8n_chat_histories WHERE session_id = '{{ $json.chatId }}' AND created_at > now() - interval '3 hours') AS msgs, COALESCE((SELECT string_agg(audio, ',') FROM audios_enviados WHERE chat_id = '{{ $json.chatId }}' AND enviado_em > now() - interval '24 hours'), '') AS ja_enviados, COALESCE((SELECT idioma FROM cliente_idioma WHERE chat_id = '{{ $json.chatId }}'), '') AS idioma_salvo;",
+        "options": {}
+      },
+      "id": "52bf21b3-2ad5-434f-8345-38cd32d7833a",
+      "name": "Checa contexto",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [
+        784,
+        432
+      ],
+      "alwaysOutputData": true,
+      "credentials": {
+        "postgres": {
+          "name": "Postgres account"
+        }
+      },
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "jsCode": "// ============================================================\n//  CEREBRO DA DECISAO\n//  Detecta idioma (com memoria), identifica o tema e escolhe o audio.\n//  Le SO do que chegou. Nunca referencia outro no.\n// ============================================================\n// Mude para true depois de colocar seus audios na pasta audios/ (veja audios/LEIA-ME.md)\nconst USAR_AUDIOS = false;\n\nconst d = $json || {};\nconst chatId = d.chat_id || '';\nconst texto = d.texto || '';\nconst pausado = (typeof d.pausado === 'number') ? d.pausado : 0;\nconst msgs = (typeof d.msgs === 'number') ? d.msgs : 99;\nconst jaEnviados = (d.ja_enviados || '').split(',');\nconst idiomaSalvo = d.idioma_salvo || '';\n\nconst bruto = texto.toLowerCase();\nconst limpo = bruto.normalize('NFD').replace(/[̀-ͯ]/g, '');\n\n// procura palavra inteira (evita 'ola' casar dentro de 'hola')\nfunction tem(palavra) {\n  const p = palavra.replace(/[.*+?^${}()|[\\]\\\\]/g, '\\\\$&');\n  return new RegExp('(^|[^a-z0-9])' + p + '([^a-z0-9]|$)').test(limpo);\n}\nfunction algum(lista) { return lista.some(tem); }\n\n// ---------- IDIOMA ----------\n// palavras que so existem em espanhol\nconst ES = ['hola','gracias','buenos','buenas','necesito','quiero','puedo','impresora',\n  'usted','ustedes','senor','disculpe','ayuda','el','los','las','un','una','del','al',\n  'con','y','hay','muy','mi','su','yo','es','son','tiene','puede','hacer','cuando',\n  'donde','tambien','pero','ahora','esto','eso','soy','estoy','estan','mismo','tengo','si'];\n// palavras que so existem em portugues\nconst PT = ['oi','ola','obrigado','obrigada','bom','boa','voce','voces','preciso',\n  'impressora','ajuda','um','uma','do','da','dos','das','com','e','muito','meu','minha',\n  'seu','sua','tem','fazer','nao','isso','ele','ela','quando','onde','entao','ja','ta',\n  'pra','pro','ate','tudo','sou','estou','estao','mesmo','tenho','esta','vou','aqui'];\n\nlet es = 0, pt = 0;\nfor (const m of ES) { if (tem(m)) es++; }\nfor (const m of PT) { if (tem(m)) pt++; }\nif (/[¿¡ñ]/.test(bruto)) es += 4;   // ¿ ¡ ñ\nif (/[ãõç]/.test(bruto)) pt += 4;   // ã õ ç\n\nlet idioma;\nif (es === pt) {\n  // sem sinal claro (ex.: \"ok\", \"si\"): usa o idioma ja conhecido do cliente\n  idioma = idiomaSalvo || 'pt';\n} else {\n  idioma = (es > pt) ? 'es' : 'pt';\n}\n// so vale salvar quando houve deteccao confiante\nconst salvarIdioma = (es !== pt) && (idioma !== idiomaSalvo);\n\n// ---------- TEMA ----------\nconst temImpressora = algum(['impressora','impresora','imprimir','imprime','impressao',\n  'impresion','printer','comanda','nao imprime','no imprime']);\nconst temErroTecnico = algum(['erro','error','bug','travou','travando','travado',\n  'fora do ar','caiu','lento','lenta','falha','falla','nao funciona','no funciona',\n  'nao carrega','no carga','nao abre','no abre','deu problema']);\n\n// ---------- QUAL AUDIO ----------\n// 1o contato: saudacao. Depois: audio do tema, uma vez a cada 24h.\nlet audio = '';\nif (msgs === 0) {\n  audio = 'saudacao-' + idioma;\n} else if (temImpressora) {\n  audio = 'impressora-' + idioma;\n} else if (temErroTecnico) {\n  audio = 'erro-tecnico-' + idioma;\n}\nif (audio && jaEnviados.indexOf(audio) !== -1) { audio = ''; }\nif (!USAR_AUDIOS) { audio = ''; }\n\nreturn [{ json: {\n  chatId: chatId,\n  texto: texto,\n  pausado: pausado,\n  msgs: msgs,\n  idioma: idioma,\n  idiomaSalvo: idiomaSalvo,\n  salvarIdioma: salvarIdioma,\n  audio: audio,\n  temAudio: audio !== ''\n}}];"
+      },
+      "id": "da5aa76d-90b7-4d59-95d1-9eeeedb08d27",
+      "name": "Analisa",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        992,
+        432
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 1
+          },
+          "conditions": [
+            {
+              "id": "p1",
+              "leftValue": "={{ $json.pausado }}",
+              "rightValue": 0,
+              "operator": {
+                "type": "number",
+                "operation": "gt"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "3aac2f92-0bb9-43c1-a741-59ff9d7bc733",
+      "name": "Esta pausado?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        1216,
+        432
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": false,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 1
+          },
+          "conditions": [
+            {
+              "id": "h1",
+              "leftValue": "={{ ($json.texto || '').toLowerCase() }}",
+              "rightValue": "humano",
+              "operator": {
+                "type": "string",
+                "operation": "contains"
+              }
+            },
+            {
+              "id": "h2",
+              "leftValue": "={{ ($json.texto || '').toLowerCase() }}",
+              "rightValue": "atendente",
+              "operator": {
+                "type": "string",
+                "operation": "contains"
+              }
+            },
+            {
+              "id": "h3",
+              "leftValue": "={{ ($json.texto || '').toLowerCase() }}",
+              "rightValue": "asesor",
+              "operator": {
+                "type": "string",
+                "operation": "contains"
+              }
+            },
+            {
+              "id": "h4",
+              "leftValue": "={{ ($json.texto || '').toLowerCase() }}",
+              "rightValue": "pessoa de verdade",
+              "operator": {
+                "type": "string",
+                "operation": "contains"
+              }
+            },
+            {
+              "id": "h5",
+              "leftValue": "={{ ($json.texto || '').toLowerCase() }}",
+              "rightValue": "persona real",
+              "operator": {
+                "type": "string",
+                "operation": "contains"
+              }
+            }
+          ],
+          "combinator": "or"
+        },
+        "options": {}
+      },
+      "id": "6028f518-e195-4cc8-aa08-0b21b4c83755",
+      "name": "Pediu humano?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        1488,
+        448
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "INSERT INTO pausa_humana (chat_id, motivo) VALUES ('{{ $json.chatId }}', 'Cliente pediu atendimento humano') ON CONFLICT (chat_id) DO UPDATE SET pausado_em = now(), motivo = EXCLUDED.motivo;",
+        "options": {}
+      },
+      "id": "b73d913b-cfa0-4421-aa58-38c12a14754f",
+      "name": "PAUSA (cliente pediu)",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [
+        1664,
+        384
+      ],
+      "credentials": {
+        "postgres": {
+          "name": "Postgres account"
+        }
+      },
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "jsCode": "// carrega chatId e idioma para o ramo da transferencia\nreturn [{ json: { chatId: $json.chatId || '', idioma: $json.idioma || 'pt' } }];"
+      },
+      "id": "396a191f-c217-4c40-bfb8-c589772ef9e7",
+      "name": "Guarda transferencia",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1872,
+        384
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://waha:3000/api/sendVoice",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "X-Api-Key",
+              "value": "={{ $env.WHATSAPP_API_KEY }}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"session\": \"default\",\n  \"chatId\": \"{{ $json.chatId }}\",\n  \"file\": {\n    \"mimetype\": \"audio/ogg; codecs=opus\",\n    \"url\": \"http://audios/transferencia-{{ $json.idioma }}.ogg\"\n  },\n  \"convert\": false\n}",
+        "options": {
+          "timeout": 20000
+        }
+      },
+      "id": "fd6f0545-ac70-44f8-9ac9-2ebbf56392e0",
+      "name": "Voz transferencia",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        2064,
+        384
+      ],
+      "continueOnFail": true,
+      "disabled": true,
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://waha:3000/api/sendText",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "X-Api-Key",
+              "value": "={{ $env.WHATSAPP_API_KEY }}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"session\": \"default\",\n  \"chatId\": \"{{ $('Guarda transferencia').first().json.chatId }}\",\n  \"text\": {{ JSON.stringify($('Guarda transferencia').first().json.idioma === 'es' ? 'Ya te estoy transfiriendo con un asesor de nuestro equipo. En instantes alguien habla contigo.' : 'Ja estou te transferindo para um atendente da nossa equipe. Em instantes alguem fala com voce.') }}\n}",
+        "options": {
+          "timeout": 20000
+        }
+      },
+      "id": "03ed7efd-54b4-4eb2-92da-3f464497b9b9",
+      "name": "Texto transferencia",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        2272,
+        384
+      ],
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "jsCode": "// carrega tudo que o ramo do agente precisa.\n// Se um audio foi enviado, avisa o agente para complementar sem repetir.\nconst d = $json || {};\nlet nota = '';\nif (d.audio && d.audio.indexOf('impressora') === 0) {\n  nota = '\\n\\n[Sistema: um audio com orientacoes de impressora ja foi enviado ao cliente. Complemente de forma breve, sem repetir o passo a passo.]';\n} else if (d.audio && d.audio.indexOf('erro-tecnico') === 0) {\n  nota = '\\n\\n[Sistema: um audio sobre erros tecnicos ja foi enviado ao cliente. Complemente de forma breve, sem repetir o que o audio explicou.]';\n} else if (d.audio && d.audio.indexOf('saudacao') === 0) {\n  nota = '\\n\\n[Sistema: um audio de boas-vindas ja foi enviado. Nao se reapresente, va direto ao ponto.]';\n}\nreturn [{ json: {\n  chatId: d.chatId || '',\n  texto: d.texto || '',\n  idioma: d.idioma || 'pt',\n  audio: d.audio || '',\n  temAudio: d.temAudio === true,\n  textoParaAgente: (d.texto || '') + nota\n}}];"
+      },
+      "id": "fa7db099-bafa-43b1-b4b8-6ddf9746a4d8",
+      "name": "Guarda dados",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1664,
+        752
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 1
+          },
+          "conditions": [
+            {
+              "id": "ta",
+              "leftValue": "={{ $('Guarda dados').first().json.temAudio }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "787f2061-8ef7-4832-a6d0-b6f4fa56d6e9",
+      "name": "Tem audio pra enviar?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        1952,
+        752
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://waha:3000/api/sendVoice",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "X-Api-Key",
+              "value": "={{ $env.WHATSAPP_API_KEY }}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"session\": \"default\",\n  \"chatId\": \"{{ $('Guarda dados').first().json.chatId }}\",\n  \"file\": {\n    \"mimetype\": \"audio/ogg; codecs=opus\",\n    \"url\": \"http://audios/{{ $('Guarda dados').first().json.audio }}.ogg\"\n  },\n  \"convert\": false\n}",
+        "options": {
+          "timeout": 20000
+        }
+      },
+      "id": "135ecc12-06d4-4cf1-acdd-3eb33a8437cb",
+      "name": "Envia voz",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        2304,
+        640
+      ],
+      "continueOnFail": true,
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "INSERT INTO audios_enviados (chat_id, audio) VALUES ('{{ $('Guarda dados').first().json.chatId }}', '{{ $('Guarda dados').first().json.audio }}');",
+        "options": {}
+      },
+      "id": "5a7b9aac-f3a1-4018-845a-394cc197be08",
+      "name": "Registra audio",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [
+        2128,
+        640
+      ],
+      "credentials": {
+        "postgres": {
+          "name": "Postgres account"
+        }
+      },
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://waha:3000/api/startTyping",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "X-Api-Key",
+              "value": "={{ $env.WHATSAPP_API_KEY }}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"session\": \"default\",\n  \"chatId\": \"{{ $('Guarda dados').first().json.chatId }}\"\n}",
+        "options": {
+          "timeout": 20000
+        }
+      },
+      "id": "cf4a489b-f8cc-4cb4-88d1-7cd3440a6d23",
+      "name": "Mostra digitando",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        2128,
+        864
+      ],
+      "continueOnFail": true,
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "amount": 3
+      },
+      "id": "fa749736-92e9-4f1c-83a8-e9bb44484df1",
+      "name": "Espera 3s",
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1.1,
+      "position": [
+        2272,
+        864
+      ],
+      "webhookId": "espera3s"
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "={{ $('Guarda dados').first().json.textoParaAgente }}",
+        "options": {
+          "systemMessage": "=Voce e [NOME DO ATENDENTE], atendente da [NOME DA EMPRESA], respondendo pelo WhatsApp.\n\nIDIOMA: detecte o idioma da mensagem do cliente e responda SEMPRE no mesmo idioma (portugues ou espanhol).\n\nESTILO: respostas CURTAS, de 2 a 4 linhas. Naturais e humanas. Uma pergunta por vez. Varie as aberturas. No maximo 1 emoji.\n\nSOBRE A EMPRESA: [descreva em poucas linhas o que a empresa faz, produtos ou servicos, horario de atendimento e o que o cliente costuma perguntar].\nLinks uteis: [site, central de ajuda, redes sociais]. Envie os links sempre completos, sem encurtar.\n\nREGRAS DO NEGOCIO: [coloque aqui respostas padrao que o agente deve seguir, como politica de troca, formas de pagamento, prazos de entrega].\n\nATENDIMENTO: diante de um problema, investigue com UMA pergunta por vez. Nunca invente informacoes. Se nao souber, seja honesto e ofereca encaminhar para um atendente humano.\n\nSe a mensagem contiver uma nota entre colchetes comecando com [Sistema:], siga a orientacao dela e NAO mencione essa nota ao cliente.\n\nSe o cliente enviou um audio que nao foi entendido, peca gentilmente para repetir ou escrever.\n\nAGENDAMENTO\nAgora e {{ $now.setZone('America/Sao_Paulo').toFormat('dd/MM/yyyy HH:mm') }} no horario de Brasilia - use isso para entender \"hoje\", \"amanha\", \"essa semana\".\nOs horarios seguem a tabela agenda_config do banco (padrao: segunda a sexta, das 13:00 as 22:00, 1 hora cada, sempre na hora cheia).\nVoce tem 4 ferramentas de agenda. NUNCA invente horario nem confirme de cabeca:\n- Horarios_disponiveis: consulte antes de oferecer qualquer horario. Ofereca no maximo 3 opcoes por vez, do jeito que vieram.\n- Agendar_treinamento: use quando o cliente escolher um horario. Envie no campo inicio exatamente o codigo que a consulta devolveu.\n- Ver_agendamento: quando ele perguntar se tem horario marcado.\n- Cancelar_agendamento: somente quando ele pedir para cancelar.\nSe a ferramenta devolver ok=false, explique o motivo em uma frase e ofereca horarios validos.\nCada cliente tem um agendamento por vez: se ja existir um marcado, Agendar_treinamento reagenda automaticamente.\nAo confirmar, repita o dia e a hora exatamente como a ferramenta devolveu."
+        }
+      },
+      "id": "872c4209-f5fc-4d91-afcd-45c5ab78a031",
+      "name": "Agente de IA",
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 1.7,
+      "position": [
+        2400,
+        864
+      ],
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 4000,
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "modelName": "models/gemini-3.6-flash",
+        "options": {}
+      },
+      "id": "0e0070bf-8003-4650-858d-88e29f213fbb",
+      "name": "Gemini",
+      "type": "@n8n/n8n-nodes-langchain.lmChatGoogleGemini",
+      "typeVersion": 1,
+      "position": [
+        2384,
+        1104
+      ],
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 4000,
+      "credentials": {
+        "googlePalmApi": {
+          "name": "Google Gemini(PaLM) Api account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "sessionIdType": "customKey",
+        "sessionKey": "={{ $('Guarda dados').first().json.chatId }}",
+        "contextWindowLength": 15
+      },
+      "id": "5d0035f6-ebeb-45c1-8d80-637c12f19031",
+      "name": "Memoria",
+      "type": "@n8n/n8n-nodes-langchain.memoryPostgresChat",
+      "typeVersion": 1.3,
+      "position": [
+        2576,
+        1104
+      ],
+      "credentials": {
+        "postgres": {
+          "name": "Postgres account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Plano B: se o Agente falhar, manda mensagem de espera no idioma certo.\nconst g = $('Guarda dados').first().json;\nlet out = '';\ntry { out = $json.output || ''; } catch (e) {}\nif (!out || String(out).trim() === '') {\n  out = (g.idioma === 'es')\n    ? 'Estoy con una inestabilidad tecnica por aqui, pero en un momento te respondo.'\n    : 'Estou com uma instabilidade tecnica por aqui, mas ja ja te respondo.';\n}\nreturn [{ json: { chatId: g.chatId || '', resposta: String(out) } }];"
+      },
+      "id": "7a5e1e69-be61-44f8-a506-0bb8cc52de40",
+      "name": "Decide resposta",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2688,
+        864
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://waha:3000/api/sendText",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "X-Api-Key",
+              "value": "={{ $env.WHATSAPP_API_KEY }}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"session\": \"default\",\n  \"chatId\": \"{{ $json.chatId }}\",\n  \"text\": {{ JSON.stringify($json.resposta) }}\n}",
+        "options": {
+          "timeout": 20000
+        }
+      },
+      "id": "54d6ddd1-dbd9-41bf-be06-58f3631d0fa0",
+      "name": "Responde no WhatsApp",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        2896,
+        864
+      ],
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "INSERT INTO cliente_idioma (chat_id, idioma) VALUES ('{{ $json.chatId }}', '{{ $json.idioma }}') ON CONFLICT (chat_id) DO UPDATE SET idioma = EXCLUDED.idioma, atualizado_em = now();",
+        "options": {}
+      },
+      "id": "ef1a5157-82a5-4c3f-9061-6f512a68c6a4",
+      "name": "Salva idioma",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [
+        1792,
+        752
+      ],
+      "alwaysOutputData": true,
+      "credentials": {
+        "postgres": {
+          "name": "Postgres account"
+        }
+      },
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "descriptionType": "manual",
+        "toolDescription": "Lista os horarios livres para treinamento. Use SEMPRE antes de oferecer qualquer horario ao cliente. O parametro dia e opcional, no formato YYYY-MM-DD. Devolve horario (para falar com o cliente) e codigo (para usar no agendamento).",
+        "operation": "executeQuery",
+        "query": "SELECT horario, codigo FROM agenda_slots_livres($1, 8);",
+        "options": {
+          "queryReplacement": "={{ $fromAI('dia', 'Dia desejado no formato YYYY-MM-DD. Envie vazio se o cliente nao pediu um dia especifico', 'string') }}"
+        }
+      },
+      "type": "n8n-nodes-base.postgresTool",
+      "typeVersion": 2.5,
+      "position": [
+        2240,
+        1312
+      ],
+      "id": "68be87f5-8b76-4831-a2d0-a2426deea7db",
+      "name": "Horarios disponiveis",
+      "credentials": {
+        "postgres": {
+          "name": "Postgres account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "descriptionType": "manual",
+        "toolDescription": "Agenda ou reagenda o treinamento do cliente. No parametro inicio envie exatamente o valor do campo codigo devolvido por Horarios disponiveis (formato YYYY-MM-DD HH:MM). Devolve ok=true com o horario confirmado, ou ok=false com o motivo da recusa.",
+        "operation": "executeQuery",
+        "query": "SELECT ok, mensagem, quando FROM agenda_marcar($1, $2);",
+        "options": {
+          "queryReplacement": "={{ $('Guarda dados').first().json.chatId }},{{ $fromAI('inicio', 'Data e hora escolhida no formato YYYY-MM-DD HH:MM (horario de Brasilia)', 'string') }}"
+        }
+      },
+      "type": "n8n-nodes-base.postgresTool",
+      "typeVersion": 2.5,
+      "position": [
+        2448,
+        1312
+      ],
+      "id": "705566a1-c513-4127-90ce-a688447b0bff",
+      "name": "Agendar treinamento",
+      "credentials": {
+        "postgres": {
+          "name": "Postgres account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "descriptionType": "manual",
+        "toolDescription": "Mostra se o cliente ja tem treinamento marcado e para quando. Nao precisa de parametros.",
+        "operation": "executeQuery",
+        "query": "SELECT situacao, quando FROM agenda_consultar($1);",
+        "options": {
+          "queryReplacement": "={{ $('Guarda dados').first().json.chatId }}"
+        }
+      },
+      "type": "n8n-nodes-base.postgresTool",
+      "typeVersion": 2.5,
+      "position": [
+        2640,
+        1312
+      ],
+      "id": "f82e4c1e-b88c-42c0-82c8-593c27b9e03e",
+      "name": "Ver agendamento",
+      "credentials": {
+        "postgres": {
+          "name": "Postgres account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "descriptionType": "manual",
+        "toolDescription": "Cancela o proximo treinamento do cliente. Use somente quando ele pedir claramente para cancelar. Nao precisa de parametros.",
+        "operation": "executeQuery",
+        "query": "SELECT ok, mensagem, quando FROM agenda_cancelar($1);",
+        "options": {
+          "queryReplacement": "={{ $('Guarda dados').first().json.chatId }}"
+        }
+      },
+      "type": "n8n-nodes-base.postgresTool",
+      "typeVersion": 2.5,
+      "position": [
+        2848,
+        1312
+      ],
+      "id": "6a7a8caf-55eb-4629-a654-fa76fed1aee0",
+      "name": "Cancelar agendamento",
+      "credentials": {
+        "postgres": {
+          "name": "Postgres account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT crm_registrar($1, $2, $3::boolean, $4, $5, $6::boolean) AS estagio;",
+        "options": {
+          "queryReplacement": "={{ [$json.chatId, $json.toId, $json.fromMe, $json.source, $json.texto, $json.ehAudio] }}"
+        }
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [
+        -384,
+        528
+      ],
+      "id": "e9c595a1-5b03-45ff-be51-1fd436924b15",
+      "name": "CRM registra",
+      "retryOnFail": true,
+      "maxTries": 2,
+      "waitBetweenTries": 1000,
+      "credentials": {
+        "postgres": {
+          "name": "Postgres account"
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "crm-api",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        -720,
+        768
+      ],
+      "id": "b63e8644-3b52-4d50-86a1-b9fc2153e962",
+      "name": "API do painel",
+      "webhookId": "crm-api"
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT crm_api($1::jsonb->>'acao', $1::jsonb) AS r;",
+        "options": {
+          "queryReplacement": "={{ [ typeof $json.body === 'string' ? $json.body : JSON.stringify($json.body) ] }}"
+        }
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [
+        -480,
+        768
+      ],
+      "id": "1da34a31-1775-4788-bc7d-3dd61ee922b2",
+      "name": "CRM executa",
+      "credentials": {
+        "postgres": {
+          "name": "Postgres account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ $json.r }}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.5,
+      "position": [
+        -240,
+        768
+      ],
+      "id": "14ed4ba0-50c1-425e-b2dc-a1a3b4157e85",
+      "name": "Devolve JSON"
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "crm-conexao",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        -720,
+        1504
+      ],
+      "id": "14ea4b60-30a0-4715-947b-0046845f8369",
+      "name": "API conexao",
+      "webhookId": "crm-conexao"
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT crm_sessao_usuario($1) AS usuario;",
+        "options": {
+          "queryReplacement": "={{ [ ($json.body && $json.body.token) || '' ] }}"
+        }
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [
+        -528,
+        1504
+      ],
+      "id": "10b1f47c-73ec-4e69-9af2-c94b6dcdc1b7",
+      "name": "Valida acesso",
+      "credentials": {
+        "postgres": {
+          "name": "Postgres account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 1
+          },
+          "conditions": [
+            {
+              "id": "d5b8b227-6954-4810-865c-02d3929be796",
+              "leftValue": "={{ $json.usuario }}",
+              "rightValue": "",
+              "operator": {
+                "type": "string",
+                "operation": "exists",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        -320,
+        1504
+      ],
+      "id": "de6382c7-7990-44f7-9620-cd558f006e57",
+      "name": "Tem acesso?"
+    },
+    {
+      "parameters": {
+        "url": "http://waha:3000/api/sessions/default",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "X-Api-Key",
+              "value": "={{ $env.WHATSAPP_API_KEY }}"
+            }
+          ]
+        },
+        "options": {
+          "timeout": 15000
+        }
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        -128,
+        1424
+      ],
+      "id": "e215bdee-7eeb-4d48-9e98-d2843db0d70a",
+      "name": "WAHA sessao"
+    },
+    {
+      "parameters": {
+        "url": "http://waha:3000/api/default/auth/qr?format=image",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "X-Api-Key",
+              "value": "={{ $env.WHATSAPP_API_KEY }}"
+            },
+            {
+              "name": "Accept",
+              "value": "application/json"
+            }
+          ]
+        },
+        "options": {
+          "timeout": 15000
+        }
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        80,
+        1424
+      ],
+      "id": "3b99dcf1-e467-4e46-8df7-ed358d170a07",
+      "name": "WAHA QR",
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Junta o estado da sessao com o QR (quando existir).\n// O WAHA devolve {mimetype, data} com o base64 quando pedimos JSON.\nconst s = $('WAHA sessao').first().json || {};\nconst status = s.status || 'DESCONHECIDO';\nlet qr = null;\ntry {\n  const q = $('WAHA QR').first().json || {};\n  if (q.data && String(q.data).length > 100) {\n    qr = 'data:' + (q.mimetype || 'image/png') + ';base64,' + q.data;\n  }\n} catch (e) {}\nconst rotulos = {\n  WORKING: 'Conectado', STARTING: 'Iniciando', SCAN_QR_CODE: 'Aguardando leitura do QR',\n  STOPPED: 'Parado', FAILED: 'Com falha' };\nreturn [{ json: {\n  ok: true,\n  status: status,\n  rotulo: rotulos[status] || status,\n  conectado: status === 'WORKING',\n  parado: status === 'STOPPED' || status === 'FAILED',\n  numero: s.me ? s.me.id : null,\n  perfil: s.me ? s.me.pushName : null,\n  qr: qr\n}}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        288,
+        1424
+      ],
+      "id": "6d0ba531-0c3c-44f6-9df2-2bb78b831118",
+      "name": "Monta conexao"
+    },
+    {
+      "parameters": {
+        "jsCode": "return [{ json: { ok: false, erro: 'SESSAO_INVALIDA' } }];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -128,
+        1600
+      ],
+      "id": "6838c76a-d16c-44dc-a46f-53796b7cf2a2",
+      "name": "Nega acesso"
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ $json }}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.5,
+      "position": [
+        512,
+        1504
+      ],
+      "id": "043a4f93-08dc-4b6d-89d0-84ed526351de",
+      "name": "Responde conexao"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 1
+          },
+          "conditions": [
+            {
+              "id": "0ff7f48b-5d67-432b-9c45-cb0f2d499156",
+              "leftValue": "={{ $('API conexao').first().json.body.acao }}",
+              "rightValue": "desconectar",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        -160,
+        1424
+      ],
+      "id": "da11cca4-1a2b-4af4-b54f-709c236bd6d1",
+      "name": "Pediu desconectar?"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://waha:3000/api/sessions/default/logout",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "X-Api-Key",
+              "value": "={{ $env.WHATSAPP_API_KEY }}"
+            }
+          ]
+        },
+        "options": {
+          "timeout": 25000
+        }
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        -160,
+        1328
+      ],
+      "id": "4d7b426d-d2ba-4c42-9073-be17ad501272",
+      "name": "WAHA logout",
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://waha:3000/api/sessions/default/restart",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "X-Api-Key",
+              "value": "={{ $env.WHATSAPP_API_KEY }}"
+            }
+          ]
+        },
+        "options": {
+          "timeout": 25000
+        }
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        -160,
+        1232
+      ],
+      "id": "86117484-ead5-4a57-a957-7960de881fdc",
+      "name": "WAHA start",
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 1
+          },
+          "conditions": [
+            {
+              "id": "969c4fee-9750-49f0-9934-218072df9024",
+              "leftValue": "={{ $('API conexao').first().json.body.acao }}",
+              "rightValue": "iniciar",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        -160,
+        1520
+      ],
+      "id": "c1517b07-1570-4665-919f-a2df3fc4ca81",
+      "name": "Pediu iniciar?"
+    },
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "minutes",
+              "minutesInterval": 10
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        -720,
+        1904
+      ],
+      "id": "2be881e1-fd17-4c22-abd0-6fb798590284",
+      "name": "A cada 10 min"
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT chat_id, texto FROM agenda_lembretes_pendentes();",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [
+        -496,
+        1904
+      ],
+      "id": "9cda49d0-0bb4-487b-9cc5-9c27cb34130a",
+      "name": "Lembretes pendentes",
+      "credentials": {
+        "postgres": {
+          "name": "Postgres account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://waha:3000/api/sendText",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "X-Api-Key",
+              "value": "={{ $env.WHATSAPP_API_KEY }}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"session\": \"default\",\n  \"chatId\": \"{{ $json.chat_id }}\",\n  \"text\": {{ JSON.stringify($json.texto) }}\n}",
+        "options": {
+          "timeout": 20000
+        }
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        -288,
+        1904
+      ],
+      "id": "a4db4e17-0527-4d29-9447-d6cda1cdc86e",
+      "name": "Envia lembrete",
+      "retryOnFail": true,
+      "maxTries": 2,
+      "waitBetweenTries": 3000,
+      "onError": "continueRegularOutput"
+    }
+  ],
+  "connections": {
+    "Recebe do Waha": {
+      "main": [
+        [
+          {
+            "node": "Extrai dados",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extrai dados": {
+      "main": [
+        [
+          {
+            "node": "Saiu do nosso numero?",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "CRM registra",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Saiu do nosso numero?": {
+      "main": [
+        [
+          {
+            "node": "Foi humano (app)?",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Eh audio?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Foi humano (app)?": {
+      "main": [
+        [
+          {
+            "node": "PAUSA (humano assumiu)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Eh audio?": {
+      "main": [
+        [
+          {
+            "node": "Baixa audio",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Texto normal",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Baixa audio": {
+      "main": [
+        [
+          {
+            "node": "Transcreve audio",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Transcreve audio": {
+      "main": [
+        [
+          {
+            "node": "Audio vira texto",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Audio vira texto": {
+      "main": [
+        [
+          {
+            "node": "Checa contexto",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Texto normal": {
+      "main": [
+        [
+          {
+            "node": "Checa contexto",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Checa contexto": {
+      "main": [
+        [
+          {
+            "node": "Analisa",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Analisa": {
+      "main": [
+        [
+          {
+            "node": "Esta pausado?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Esta pausado?": {
+      "main": [
+        [],
+        [
+          {
+            "node": "Pediu humano?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Pediu humano?": {
+      "main": [
+        [
+          {
+            "node": "PAUSA (cliente pediu)",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Guarda dados",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "PAUSA (cliente pediu)": {
+      "main": [
+        [
+          {
+            "node": "Guarda transferencia",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Guarda transferencia": {
+      "main": [
+        [
+          {
+            "node": "Voz transferencia",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Voz transferencia": {
+      "main": [
+        [
+          {
+            "node": "Texto transferencia",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Guarda dados": {
+      "main": [
+        [
+          {
+            "node": "Salva idioma",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Tem audio pra enviar?": {
+      "main": [
+        [
+          {
+            "node": "Registra audio",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Mostra digitando",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Envia voz": {
+      "main": [
+        [
+          {
+            "node": "Mostra digitando",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Registra audio": {
+      "main": [
+        [
+          {
+            "node": "Envia voz",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Mostra digitando": {
+      "main": [
+        [
+          {
+            "node": "Espera 3s",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Espera 3s": {
+      "main": [
+        [
+          {
+            "node": "Agente de IA",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Decide resposta": {
+      "main": [
+        [
+          {
+            "node": "Responde no WhatsApp",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Gemini": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "Agente de IA",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Memoria": {
+      "ai_memory": [
+        [
+          {
+            "node": "Agente de IA",
+            "type": "ai_memory",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Salva idioma": {
+      "main": [
+        [
+          {
+            "node": "Tem audio pra enviar?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Horarios disponiveis": {
+      "ai_tool": [
+        [
+          {
+            "node": "Agente de IA",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Agendar treinamento": {
+      "ai_tool": [
+        [
+          {
+            "node": "Agente de IA",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Ver agendamento": {
+      "ai_tool": [
+        [
+          {
+            "node": "Agente de IA",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Cancelar agendamento": {
+      "ai_tool": [
+        [
+          {
+            "node": "Agente de IA",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "API do painel": {
+      "main": [
+        [
+          {
+            "node": "CRM executa",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "CRM executa": {
+      "main": [
+        [
+          {
+            "node": "Devolve JSON",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "API conexao": {
+      "main": [
+        [
+          {
+            "node": "Valida acesso",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Valida acesso": {
+      "main": [
+        [
+          {
+            "node": "Tem acesso?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Tem acesso?": {
+      "main": [
+        [
+          {
+            "node": "Pediu desconectar?",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Nega acesso",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "WAHA sessao": {
+      "main": [
+        [
+          {
+            "node": "WAHA QR",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "WAHA QR": {
+      "main": [
+        [
+          {
+            "node": "Monta conexao",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Monta conexao": {
+      "main": [
+        [
+          {
+            "node": "Responde conexao",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Nega acesso": {
+      "main": [
+        [
+          {
+            "node": "Responde conexao",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Pediu desconectar?": {
+      "main": [
+        [
+          {
+            "node": "WAHA logout",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Pediu iniciar?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "WAHA logout": {
+      "main": [
+        [
+          {
+            "node": "WAHA start",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Pediu iniciar?": {
+      "main": [
+        [
+          {
+            "node": "WAHA start",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "WAHA sessao",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "WAHA start": {
+      "main": [
+        [
+          {
+            "node": "WAHA sessao",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "A cada 10 min": {
+      "main": [
+        [
+          {
+            "node": "Lembretes pendentes",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Lembretes pendentes": {
+      "main": [
+        [
+          {
+            "node": "Envia lembrete",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Agente de IA": {
+      "main": [
+        [
+          {
+            "node": "Decide resposta",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate"
+  },
+  "pinData": {},
+  "active": false
+}

@@ -1,0 +1,75 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#0369a1">
+<title>Conversas</title>
+<link rel="stylesheet" href="painel.css">
+</head>
+<body>
+
+<div id="offline" role="status" hidden>Sem conexão com a internet. Tentando de novo...</div>
+
+<div id="app" hidden>
+  <aside id="lateral">
+    <div class="marca"><i aria-hidden="true"></i> Conversas</div>
+    <nav aria-label="Principal">
+      <button class="nv" data-v="kanban"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="4" width="5" height="16" rx="1.5"/><rect x="10" y="4" width="5" height="10" rx="1.5"/><rect x="17" y="4" width="4" height="14" rx="1.5"/></svg><span>Kanban</span><span class="bolinha" id="bolFila" hidden></span></button>
+      <button class="nv" data-v="dashboard"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/></svg><span>Dashboard</span></button>
+      <button class="nv" data-v="agenda"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 10h18M8 3v4M16 3v4"/></svg><span>Agenda</span></button>
+      <button class="nv" data-v="relatorios"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M14 3H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"/><path d="M14 3v6h6M8 13h8M8 17h5"/></svg><span>Relatórios</span></button>
+      <button class="nv" data-v="conexao"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><path d="M14 14h3v3h-3zM20 20h1M17 20v1"/></svg><span>Conexão</span></button>
+      <button class="nv" data-v="equipe"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="9" cy="8" r="3.2"/><path d="M3 20c0-3.3 2.7-5.5 6-5.5s6 2.2 6 5.5M17 11.5a3 3 0 1 0-1.5-5.6M18 20c0-2.2-.8-3.8-2-4.8"/></svg><span>Equipe</span></button>
+    </nav>
+    <div class="rodape">
+      <div class="eu"><span class="avatar" id="ini" aria-hidden="true">?</span><span class="nome-eu" id="quem"></span></div>
+      <div class="linha-b">
+        <button class="b mini ghost" id="btTema" type="button">Tema</button>
+        <button class="b mini" id="btSair" type="button">Sair da conta</button>
+      </div>
+    </div>
+  </aside>
+
+  <main>
+    <header id="topo">
+      <div><h1 id="titulo">Kanban</h1><div id="sub" aria-live="polite"></div></div>
+      <span class="cresce"></span>
+      <div id="acoesTopo"></div>
+    </header>
+    <section class="view" id="v-kanban"><div id="filtros" role="group" aria-label="Filtros"></div><div id="quadro"></div></section>
+    <section class="view" id="v-dashboard" hidden></section>
+    <section class="view" id="v-agenda" hidden></section>
+    <section class="view" id="v-relatorios" hidden></section>
+    <section class="view" id="v-conexao" hidden></section>
+    <section class="view" id="v-equipe" hidden></section>
+  </main>
+</div>
+
+<div id="mask"></div>
+<aside id="drawer" role="dialog" aria-modal="true" aria-labelledby="dfone">
+  <div id="dtopo"><h2 id="dfone">Conversa</h2><span class="cresce"></span>
+    <button class="b mini" id="dfechar" type="button">Fechar</button></div>
+  <div id="dbody"></div>
+</aside>
+<div id="aviso" role="status" aria-live="polite"><span id="avisoTxt"></span><button id="avisoAcao" type="button" hidden></button></div>
+
+<div id="acesso"><div class="cx">
+  <div class="marca"><i aria-hidden="true"></i> Conversas</div>
+  <h2 id="acTitulo">Entrar</h2>
+  <p id="acTexto">Use o usuário e a senha da sua equipe.</p>
+  <label for="acUsuario">Usuário</label>
+  <input id="acUsuario" autocomplete="username" autocapitalize="none" autocorrect="off" spellcheck="false" enterkeyhint="next">
+  <label for="acSenha">Senha</label>
+  <input id="acSenha" type="password" autocomplete="current-password" enterkeyhint="go">
+  <div id="acNome" hidden>
+    <label for="acNomeInput">Seu nome</label>
+    <input id="acNomeInput" autocomplete="name">
+  </div>
+  <p class="erro" id="acErro" role="alert"></p>
+  <button class="b pri" id="acBotao" type="button">Entrar</button>
+</div></div>
+
+<script src="painel.js"></script>
+</body>
+</html>

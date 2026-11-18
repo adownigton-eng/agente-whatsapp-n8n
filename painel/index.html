@@ -1,0 +1,975 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>CRM Atendimentos</title>
+<style>
+  :root{
+    /* estrutura em cinza neutro; o azul entra so onde ha acao */
+    --azul:#0284c7; --azul-forte:#0369a1; --azul-medio:#7dd3fc;
+    --bebe:#bae6fd; --bebe-claro:#e0f2fe; --azul-fraco:#f0f9ff;
+    --bg:#f2f3f5;        /* fundo da pagina, cinza bem claro */
+    --sup:#ffffff;       /* cartoes e barras */
+    --sup2:#f7f8fa;      /* campos e celulas */
+    --cinza:#eaecf0;     /* preenchimentos suaves */
+    --cinza2:#dde0e6;    /* separadores fortes */
+    --ink:#1b2229; --ink2:#4d5661; --ink3:#656e7a;
+    --linha:#e4e6eb; --linha2:#cfd3da;
+    --ok:#166534; --alerta:#d97706; --risco:#be185d;
+    --verde:#166534; --verde-bebe:#d6f5e3;   /* sucesso: so onde deu certo */
+    --sombra:0 1px 2px rgba(22,26,32,.05), 0 6px 18px rgba(22,26,32,.06);
+    --sombra2:0 2px 6px rgba(22,26,32,.08), 0 14px 32px rgba(22,26,32,.10);
+    --r:16px; --r2:12px;
+    --av-l1:90%; --av-l2:30%;           /* avatar: fundo claro, letra escura */
+  }
+  @media (prefers-color-scheme:dark){
+    :root{
+      --av-l1:24%; --av-l2:82%;
+      --azul:#38bdf8; --azul-forte:#7dd3fc; --azul-medio:#0e7490;
+      --bebe:#1d4055; --bebe-claro:#1a3243; --azul-fraco:#162936;
+      --bg:#16181c; --sup:#1e2126; --sup2:#24282e;
+      --cinza:#2a2f36; --cinza2:#39404a;
+      --verde:#4ade80; --verde-bebe:#1c3b2c;
+      --ink:#e9ecf0; --ink2:#b0b7c0; --ink3:#858d97;
+      --linha:#2e333a; --linha2:#3c434c;
+      --sombra:0 1px 2px rgba(0,0,0,.4), 0 8px 22px rgba(0,0,0,.3);
+      --sombra2:0 4px 10px rgba(0,0,0,.45), 0 18px 40px rgba(0,0,0,.4);
+    }
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;height:100%}
+  body{background:var(--bg);color:var(--ink);
+       font:14px/1.55 "Segoe UI",system-ui,-apple-system,Roboto,Arial,sans-serif;
+       padding-top:env(safe-area-inset-top,0px)}
+  img{max-width:100%}
+  [hidden]{display:none!important}
+  input,textarea,button,select{font:inherit;color:inherit}
+  button{cursor:pointer}
+
+  /* ================= estrutura ================= */
+  #app{display:grid;grid-template-columns:216px 1fr;min-height:100vh}
+  #lateral{background:var(--sup);border-right:1px solid var(--linha);
+           display:flex;flex-direction:column;position:sticky;top:0;height:100vh}
+  .marca{display:flex;align-items:center;gap:10px;padding:18px 18px 14px;
+         font-size:15px;font-weight:650;letter-spacing:-.01em}
+  .marca i{width:26px;height:26px;border-radius:9px;background:var(--azul);flex:none}
+  nav{padding:6px 10px;display:flex;flex-direction:column;gap:2px;flex:1}
+  .nv{display:flex;align-items:center;gap:10px;padding:9px 11px;border-radius:10px;
+      border:none;background:none;color:var(--ink2);font-size:13.5px;font-weight:500;
+      text-align:left;width:100%}
+  .nv:hover{background:var(--cinza);color:var(--ink)}
+  .nv.on{background:var(--bebe-claro);color:var(--azul-forte);font-weight:650}
+  .nv svg{width:17px;height:17px;flex:none;stroke:currentColor;fill:none;stroke-width:1.7}
+  .rodape{padding:12px 14px;border-top:1px solid var(--linha);display:flex;
+          align-items:center;gap:9px}
+  .avatar{width:28px;height:28px;border-radius:50%;background:var(--bebe-claro);
+          color:var(--azul-forte);display:grid;place-items:center;font-weight:700;font-size:12px;flex:none}
+  .quem{font-size:12.5px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1}
+
+  main{min-width:0;display:flex;flex-direction:column}
+  #topo{background:var(--sup);border-bottom:1px solid var(--linha);
+        padding:13px 22px;display:flex;align-items:center;gap:12px;flex-wrap:wrap;
+        position:sticky;top:0;z-index:10}
+  #titulo{font-size:16px;font-weight:650;letter-spacing:-.01em}
+  #sub{font-size:12.5px;color:var(--ink3)}
+  .cresce{flex:1}
+  .campo{background:var(--sup2);border:1px solid var(--linha);border-radius:999px;
+         padding:7px 14px;min-width:190px}
+  .campo:focus{outline:none;border-color:var(--azul)}
+  .b{border-radius:999px;padding:7px 15px;font-size:13px;font-weight:550;
+     border:1px solid var(--linha2);background:var(--sup);color:var(--ink)}
+  .b:hover{border-color:var(--azul);color:var(--azul)}
+  .b.pri{background:var(--azul);border-color:var(--azul);color:#fff}
+  .b.pri:hover{background:var(--azul-forte);border-color:var(--azul-forte);color:#fff}
+  .b.mini{padding:5px 11px;font-size:12px}
+  .view{padding:20px 22px 28px}
+
+  /* ================= kanban ================= */
+  #quadro{display:grid;grid-template-columns:repeat(var(--cols,6),minmax(0,1fr));gap:14px;
+          align-items:start}
+  .col{min-width:0;display:flex;flex-direction:column;gap:10px}
+  .colh{display:flex;align-items:center;gap:8px;padding:0 4px}
+  .pt{width:8px;height:8px;border-radius:3px;flex:none;background:var(--c)}
+  @media (prefers-color-scheme:dark){ .pt{background:var(--cd)} }
+  .colt{font-size:12.5px;font-weight:650;color:var(--ink2);overflow:hidden;
+        text-overflow:ellipsis;white-space:nowrap;min-width:0}
+  .cnt{margin-left:auto;font-size:12px;color:var(--ink3);font-variant-numeric:tabular-nums;flex:none}
+  .drop{display:flex;flex-direction:column;gap:10px;min-height:70px;border-radius:var(--r);
+        padding:2px;transition:background .15s}
+  .drop.over{background:var(--bebe-claro)}
+  .card{background:var(--sup);border-radius:var(--r);padding:13px 14px;box-shadow:var(--sombra);
+        cursor:grab;transition:box-shadow .16s,transform .16s}
+  .card:hover{box-shadow:var(--sombra2);transform:translateY(-1px)}
+  .card.dragging{opacity:.4}
+  .ctop{display:flex;gap:10px;align-items:flex-start}
+  .quem{flex:1;min-width:0}
+  .av{flex:none;width:32px;height:32px;border-radius:50%;display:grid;place-items:center;
+      font-size:12px;font-weight:700;letter-spacing:.02em;
+      background:hsl(var(--h,210) 40% var(--av-l1));color:hsl(var(--h,210) 45% var(--av-l2))}
+  .av.oculto{background:var(--cinza);color:var(--ink3)}
+  .av.g{width:40px;height:40px;font-size:14px}
+  .fone{display:block;font-weight:650;font-size:13.5px;line-height:1.25;
+        white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .fone.oculto{color:var(--ink2);font-weight:600}
+  .sub{margin-top:2px;font-size:11.5px;color:var(--ink3);font-variant-numeric:tabular-nums;
+       white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .item a{color:var(--azul-forte);text-decoration:none;font-variant-numeric:tabular-nums}
+  .item a:hover{text-decoration:underline}
+  .copiar{margin-left:8px;font:inherit;font-size:11px;font-weight:600;padding:2px 9px;border-radius:999px;
+          border:1px solid var(--linha2);background:var(--sup);color:var(--ink2);cursor:pointer}
+  .copiar:hover{color:var(--ink)}
+  .idade{font-size:11.5px;color:var(--ink3);white-space:nowrap;font-variant-numeric:tabular-nums}
+  .msg{margin-top:6px;font-size:12.5px;color:var(--ink2);display:-webkit-box;-webkit-line-clamp:2;
+       -webkit-box-orient:vertical;overflow:hidden;overflow-wrap:anywhere}
+  .tags{display:flex;gap:6px;flex-wrap:wrap;margin-top:10px}
+  .tag{font-size:11px;font-weight:600;padding:2px 9px;border-radius:999px;
+       background:var(--cinza);color:var(--ink2)}
+  .tag.pausa{background:rgba(190,24,93,.12);color:var(--risco)}
+  .tag.trein{background:var(--verde-bebe);color:var(--verde)}
+  .tag.resp{background:rgba(217,119,6,.14);color:var(--alerta)}
+  .vazio{color:var(--ink3);font-size:12.5px;text-align:center;padding:16px 6px}
+
+  /* ================= blocos e graficos ================= */
+  .grade{display:grid;gap:14px}
+  .g4{grid-template-columns:repeat(auto-fit,minmax(190px,1fr))}
+  .g2{grid-template-columns:repeat(auto-fit,minmax(330px,1fr))}
+  .bloco{background:var(--sup);border-radius:var(--r);padding:16px 18px;box-shadow:var(--sombra)}
+  .bloco h3{margin:0 0 3px;font-size:13px;font-weight:650}
+  .bloco .dica{margin:0 0 14px;font-size:12px;color:var(--ink3)}
+  .kpi .rot{font-size:12px;color:var(--ink3);font-weight:550}
+  .kpi .num{font-size:30px;font-weight:700;letter-spacing:-.02em;line-height:1.15;margin-top:4px}
+  .kpi .pe{font-size:12px;color:var(--ink3);margin-top:2px}
+  .kpi.bom .num{color:var(--verde)}
+
+  /* barras verticais */
+  .gr{display:flex;align-items:flex-end;gap:2px;height:150px;padding-top:6px}
+  .br{flex:1;min-width:0;display:flex;flex-direction:column;align-items:center;gap:5px;height:100%;
+      justify-content:flex-end}
+  .bv{width:100%;max-width:26px;background:var(--azul);border-radius:4px 4px 0 0;min-height:2px}
+  .br:hover .bv{background:var(--azul-forte)}
+  .bl{font-size:10px;color:var(--ink3);white-space:nowrap;height:12px}
+  .eixo{border-top:1px solid var(--linha);margin-top:2px}
+
+  /* barras horizontais */
+  .bh{display:grid;grid-template-columns:118px 1fr 42px;align-items:center;gap:10px;margin-bottom:9px}
+  .bhr{font-size:12.5px;color:var(--ink2);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .bht{background:var(--cinza);border-radius:999px;height:9px;overflow:hidden}
+  .bht i{display:block;height:100%;border-radius:999px;background:var(--azul)}
+  .bhv{font-size:12.5px;font-weight:650;text-align:right;font-variant-numeric:tabular-nums}
+
+  /* ================= tabelas ================= */
+  .rol{overflow-x:auto}
+  table{border-collapse:collapse;width:100%;font-size:12.5px}
+  th{text-align:left;font-weight:650;color:var(--ink3);font-size:11.5px;text-transform:uppercase;
+     letter-spacing:.04em;padding:7px 10px;border-bottom:1px solid var(--linha);white-space:nowrap}
+  td{padding:8px 10px;border-bottom:1px solid var(--linha);vertical-align:top}
+  tr:last-child td{border-bottom:none}
+
+  /* ================= calendario ================= */
+  .cal{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:6px}
+  .cald{font-size:11px;font-weight:650;color:var(--ink3);text-align:center;padding-bottom:4px}
+  .celula{background:var(--sup2);border-radius:10px;min-height:76px;padding:7px 8px;
+          display:flex;flex-direction:column;gap:4px}
+  .celula.fora{opacity:.35}
+  .celula.hoje{outline:2px solid var(--azul)}
+  .celula .dn{font-size:12px;font-weight:650;color:var(--ink2)}
+  .ev{font-size:10.5px;font-weight:600;background:rgba(22,101,52,.14);color:var(--ok);
+      border-radius:6px;padding:2px 6px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+
+  /* ================= gaveta ================= */
+  #drawer{position:fixed;inset:0 0 0 auto;width:min(430px,100%);background:var(--sup);
+          border-left:1px solid var(--linha);box-shadow:-14px 0 40px rgba(22,26,32,.16);
+          transform:translateX(101%);transition:transform .22s ease;z-index:40;
+          display:flex;flex-direction:column}
+  #drawer.open{transform:none}
+  #dtopo{display:flex;align-items:center;gap:10px;padding:14px 16px;border-bottom:1px solid var(--linha);
+         padding-top:calc(14px + env(safe-area-inset-top,0px))}
+  #dfone{font-size:15px;font-weight:650;overflow-wrap:anywhere}
+  #dbody{padding:14px 16px 26px;overflow-y:auto;flex:1;display:flex;flex-direction:column;gap:12px}
+  .item{display:flex;justify-content:space-between;gap:12px;font-size:13px;padding:3px 0}
+  .item span{color:var(--ink3)}
+  .item b{font-weight:600;text-align:right;overflow-wrap:anywhere}
+  textarea{width:100%;min-height:74px;background:var(--sup2);border:1px solid var(--linha);
+           border-radius:var(--r2);padding:9px;resize:vertical}
+  textarea:focus{outline:none;border-color:var(--azul)}
+  .acoes{display:flex;gap:8px;flex-wrap:wrap}
+  .chat{display:flex;flex-direction:column;gap:8px;max-height:330px;overflow-y:auto}
+  .bolha{max-width:88%;padding:8px 11px;border-radius:var(--r2);font-size:12.5px;white-space:pre-wrap;
+         overflow-wrap:anywhere;background:var(--sup2)}
+  .bolha small{display:block;font-size:10.5px;color:var(--ink3);margin-top:4px}
+  .bolha.entrada{align-self:flex-start}
+  .bolha.saida{align-self:flex-end;background:var(--bebe-claro)}
+  .bolha.humano{background:rgba(217,119,6,.14)}
+  #mask{position:fixed;inset:0;background:rgba(22,26,32,.48);z-index:35;display:none}
+  #mask.on{display:block}
+  #aviso{position:fixed;left:50%;bottom:24px;transform:translateX(-50%) translateY(14px);
+         background:var(--ink);color:var(--bg);padding:10px 18px;border-radius:999px;font-size:13px;
+         opacity:0;transition:.18s;z-index:60;pointer-events:none;max-width:90vw}
+  #aviso.on{opacity:1;transform:translateX(-50%)}
+
+  /* ================= acesso ================= */
+  #acesso{position:fixed;inset:0;background:var(--bg);z-index:80;display:none;place-items:center;padding:20px}
+  #acesso.on{display:grid}
+  #acesso .cx{background:var(--sup);border-radius:var(--r);box-shadow:var(--sombra2);
+              padding:28px;max-width:380px;width:100%}
+  #acesso h2{margin:0 0 4px;font-size:18px;font-weight:650}
+  #acesso p{margin:0 0 18px;color:var(--ink3);font-size:13px}
+  #acesso label{display:block;font-size:12px;color:var(--ink2);margin:0 0 5px;font-weight:550}
+  #acesso input{width:100%;background:var(--sup2);border:1px solid var(--linha);
+                border-radius:var(--r2);padding:10px 12px;margin-bottom:13px}
+  #acesso input:focus{outline:none;border-color:var(--azul)}
+  #acesso .erro{color:var(--risco);font-size:12.5px;margin:0 0 12px;min-height:17px}
+  #acesso .b{width:100%;padding:11px}
+
+  @media(max-width:1180px){
+    #quadro{display:flex;overflow-x:auto;padding-bottom:6px}
+    .col{flex:0 0 250px}
+  }
+  @media(max-width:820px){
+    #app{grid-template-columns:1fr}
+    #lateral{position:static;height:auto;flex-direction:row;align-items:center;overflow-x:auto;
+             border-right:none;border-bottom:1px solid var(--linha)}
+    .marca{padding:12px 14px}
+    nav{flex-direction:row;padding:8px}
+    .nv{width:auto;white-space:nowrap}
+    .rodape{border-top:none;border-left:1px solid var(--linha)}
+    .view{padding:14px}
+  }
+</style>
+</head>
+<body>
+
+<div id="app" hidden>
+  <aside id="lateral">
+    <div class="marca"><i></i> CRM</div>
+    <nav>
+      <button class="nv on" data-v="kanban"><svg viewBox="0 0 24 24"><rect x="3" y="4" width="5" height="16" rx="1.5"/><rect x="10" y="4" width="5" height="10" rx="1.5"/><rect x="17" y="4" width="4" height="14" rx="1.5"/></svg> Kanban</button>
+      <button class="nv" data-v="dashboard"><svg viewBox="0 0 24 24"><path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/></svg> Dashboard</button>
+      <button class="nv" data-v="agenda"><svg viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 10h18M8 3v4M16 3v4"/></svg> Agenda</button>
+      <button class="nv" data-v="relatorios"><svg viewBox="0 0 24 24"><path d="M14 3H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"/><path d="M14 3v6h6M8 13h8M8 17h5"/></svg> Relatórios</button>
+      <button class="nv" data-v="conexao"><svg viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><path d="M14 14h3v3h-3zM20 20h1M17 20v1"/></svg> Conexão</button>
+      <button class="nv" data-v="equipe"><svg viewBox="0 0 24 24"><circle cx="9" cy="8" r="3.2"/><path d="M3 20c0-3.3 2.7-5.5 6-5.5s6 2.2 6 5.5M17 11.5a3 3 0 1 0-1.5-5.6M18 20c0-2.2-.8-3.8-2-4.8"/></svg> Equipe</button>
+    </nav>
+    <div style="padding:2px 14px 10px;font-size:10.5px;color:var(--ink3)">painel v5</div>
+    <div class="rodape">
+      <div class="avatar" id="ini">-</div>
+      <div class="quem" id="quem">-</div>
+      <button class="b mini" id="btSair">Sair</button>
+    </div>
+  </aside>
+
+  <main>
+    <header id="topo">
+      <div><div id="titulo">Kanban</div><div id="sub">-</div></div>
+      <span class="cresce"></span>
+      <div id="acoesTopo"></div>
+    </header>
+    <section class="view" id="v-kanban"><div id="quadro"></div></section>
+    <section class="view" id="v-dashboard" hidden></section>
+    <section class="view" id="v-agenda" hidden></section>
+    <section class="view" id="v-relatorios" hidden></section>
+    <section class="view" id="v-conexao" hidden></section>
+    <section class="view" id="v-equipe" hidden></section>
+  </main>
+</div>
+
+<div id="mask"></div>
+<aside id="drawer">
+  <div id="dtopo"><span id="dfone">-</span><span class="cresce"></span>
+    <button class="b mini" id="dfechar">Fechar</button></div>
+  <div id="dbody"></div>
+</aside>
+<div id="aviso"></div>
+
+<div id="acesso"><div class="cx">
+  <div class="marca" style="padding:0 0 18px"><i></i> CRM Atendimentos</div>
+  <h2 id="acTitulo">Entrar</h2>
+  <p id="acTexto">Use seu usuario e senha da equipe.</p>
+  <label for="acUsuario">Usuario</label>
+  <input id="acUsuario" autocomplete="username" spellcheck="false">
+  <label for="acSenha">Senha</label>
+  <input id="acSenha" type="password" autocomplete="current-password">
+  <div id="acNome" hidden>
+    <label for="acNomeInput">Seu nome</label>
+    <input id="acNomeInput" autocomplete="name">
+  </div>
+  <p class="erro" id="acErro"></p>
+  <button class="b pri" id="acBotao">Entrar</button>
+</div></div>
+
+<script>
+var API = '/api/crm-api';
+var token = '';
+try { token = localStorage.getItem('crm_sessao') || ''; } catch(e) {}
+var dados = {cards:[], estagios:[], agenda:[]};
+var dash = null, rel = null, equipe = null;
+var vista = 'kanban', atual = null, arrastando = false, notaSuja = false, modoSetup = false;
+var mesCal = new Date();
+
+function $(s){ return document.querySelector(s); }
+function esc(s){ return String(s == null ? '' : s).replace(/[&<>"]/g, function(c){
+  return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]; }); }
+
+// ---- Identificacao do contato ----
+// telefone = numero real (so digitos, com DDI). Quando o WhatsApp esconde o
+// numero atras de um ID interno (LID), telefone vem vazio e sobra o lid.
+var DDI = ['55','1','52','54','56','57','51','58','591','593','595','598','502','503','504',
+           '505','506','507','34','351','39','44','49','33'];
+function foneFmt(t){
+  var d = String(t || '').replace(/\D/g, '');
+  if(!d) return '';
+  if(d.indexOf('55') === 0 && (d.length === 12 || d.length === 13)){   // Brasil
+    var ddd = d.substr(2,2), n = d.substr(4);
+    return '+55 (' + ddd + ') ' + n.substr(0, n.length-4) + '-' + n.substr(-4);
+  }
+  var cc = DDI.filter(function(c){ return d.indexOf(c) === 0; })
+              .sort(function(a,b){ return b.length - a.length; })[0] || '';
+  var resto = d.substr(cc.length);
+  var blocos = resto.length > 7 ? [resto.slice(0,-7), resto.slice(-7,-4), resto.slice(-4)]
+                                : [resto.slice(0,-4), resto.slice(-4)];
+  return '+' + (cc ? cc + ' ' : '') + blocos.filter(Boolean).join(' ');
+}
+function nomeDe(c){ return (c.nome || c.nome_whatsapp || '').trim(); }
+function identificado(c){ return !!(nomeDe(c) || c.telefone); }
+// Sem numero real, mostra ao menos o numero com que o contato chegou (ID do WhatsApp)
+function idWhats(c){ return String(c.lid || String(c.chat_id || '').split('@')[0] || '').replace(/\D/g, ''); }
+function contatoTitulo(c){ return nomeDe(c) || foneFmt(c.telefone) || idWhats(c) || 'Contato'; }
+function contatoSub(c){
+  if(c.telefone) return nomeDe(c) ? foneFmt(c.telefone) : '';
+  return nomeDe(c) ? idWhats(c) + ' · ID do WhatsApp' : 'ID do WhatsApp · número real oculto';
+}
+// Avatar: iniciais do nome (ou 2 ultimos digitos) e cor estavel por contato
+function iniciais(c){
+  var n = nomeDe(c).replace(/[^\p{L}\p{N} ]/gu, ' ').trim().split(/\s+/).filter(Boolean);
+  if(n.length) return ((n[0][0] || '') + (n.length > 1 ? n[n.length-1][0] : '')).toUpperCase();
+  var d = String(c.telefone || '').replace(/\D/g, '') || idWhats(c);
+  return d ? d.slice(-2) : '?';
+}
+function avatarHtml(c, grande){
+  var h = 0, s = String(c.chat_id || '');
+  for(var i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) % 360;
+  return '<span class="av' + (grande ? ' g' : '') + (identificado(c) ? '' : ' oculto') +
+         '" style="--h:' + h + '" aria-hidden="true">' + esc(iniciais(c)) + '</span>';
+}
+function contatoBusca(c){
+  return [c.nome, c.nome_whatsapp, c.telefone, foneFmt(c.telefone), c.lid]
+    .join(' ').toLowerCase();
+}
+function aviso(m){ var t = $('#aviso'); t.textContent = m; t.classList.add('on');
+  clearTimeout(aviso._t); aviso._t = setTimeout(function(){ t.classList.remove('on'); }, 2800); }
+function guardar(t){ token = t || '';
+  try { if(token) localStorage.setItem('crm_sessao', token); else localStorage.removeItem('crm_sessao'); }
+  catch(e) {} }
+
+async function api(acao, extra){
+  var r = await fetch(API, {method:'POST', headers:{'Content-Type':'application/json'},
+    body: JSON.stringify(Object.assign({acao:acao, token:token}, extra || {}))});
+  if(!r.ok) throw new Error('HTTP ' + r.status);
+  var j = await r.json();
+  if(j && j.ok === false){
+    if(j.erro === 'SESSAO_INVALIDA'){ guardar(''); mostrarAcesso(); throw new Error('sessao'); }
+    throw new Error(j.erro || 'erro');
+  }
+  return j;
+}
+function falhou(e, oque){ if(e.message !== 'sessao') aviso(oque + ': ' + e.message); }
+
+/* ==================== acesso ==================== */
+async function mostrarAcesso(){
+  $('#app').hidden = true; $('#acesso').classList.add('on');
+  try { modoSetup = !!(await api('status')).precisa_setup; } catch(e) { modoSetup = false; }
+  $('#acTitulo').textContent = modoSetup ? 'Primeiro acesso' : 'Entrar';
+  $('#acTexto').textContent = modoSetup
+    ? 'Nenhum usuario cadastrado. Defina o acesso do administrador (senha de 8 caracteres ou mais).'
+    : 'Use seu usuario e senha da equipe.';
+  $('#acBotao').textContent = modoSetup ? 'Criar acesso' : 'Entrar';
+  $('#acNome').hidden = !modoSetup;
+  $('#acUsuario').focus();
+}
+var ERROS = {
+  CREDENCIAL_INVALIDA:'Usuario ou senha incorretos.',
+  SENHA_CURTA:'A senha precisa ter ao menos 8 caracteres.',
+  USUARIO_CURTO:'O usuario precisa ter ao menos 3 caracteres.',
+  USUARIO_EXISTE:'Esse usuario ja existe.',
+  JA_CONFIGURADO:'O sistema ja tem usuarios. Faca login.'
+};
+$('#acBotao').onclick = async function(){
+  $('#acErro').textContent = '';
+  var u = $('#acUsuario').value.trim(), s = $('#acSenha').value;
+  if(!u || !s){ $('#acErro').textContent = 'Preencha usuario e senha.'; return; }
+  try {
+    var r = await api(modoSetup ? 'primeiro_acesso' : 'login',
+                      {usuario:u, senha:s, nome:$('#acNomeInput').value.trim()});
+    guardar(r.token); $('#acSenha').value = '';
+    $('#acesso').classList.remove('on'); $('#app').hidden = false;
+    identificar(r.nome || r.usuario);
+    carregar();
+  } catch(e){ $('#acErro').textContent = ERROS[e.message] || ('Nao consegui entrar: ' + e.message); }
+};
+$('#acSenha').addEventListener('keydown', function(e){ if(e.key==='Enter') $('#acBotao').click(); });
+$('#acUsuario').addEventListener('keydown', function(e){ if(e.key==='Enter') $('#acSenha').focus(); });
+$('#btSair').onclick = async function(){
+  try { await api('logout'); } catch(e) {}
+  guardar(''); fechar(); mostrarAcesso();
+};
+function identificar(nome){
+  $('#quem').textContent = nome || '';
+  $('#ini').textContent = (nome || '?').trim().charAt(0).toUpperCase();
+}
+
+/* ==================== navegacao ==================== */
+var TITULOS = {kanban:'Kanban', dashboard:'Dashboard', agenda:'Agenda',
+               relatorios:'Relatorios', conexao:'Conexao do WhatsApp', equipe:'Equipe'};
+document.querySelectorAll('.nv').forEach(function(b){
+  b.onclick = function(){ navegar(b.dataset.v); };
+});
+function navegar(v){
+  vista = v;
+  document.querySelectorAll('.nv').forEach(function(b){ b.classList.toggle('on', b.dataset.v === v); });
+  ['kanban','dashboard','agenda','relatorios','conexao','equipe'].forEach(function(x){
+    $('#v-' + x).hidden = (x !== v);
+  });
+  $('#titulo').textContent = TITULOS[v];
+  if(v === 'kanban')      { acoesKanban(); desenhar(); }
+  if(v === 'dashboard')   { acoesDash(); carregarDash(); }
+  if(v === 'agenda')      { $('#acoesTopo').innerHTML = ''; carregarAgenda(); }
+  if(v === 'relatorios')  { $('#acoesTopo').innerHTML = ''; desenharRelatorios(); }
+  if(v === 'conexao')     { $('#acoesTopo').innerHTML =
+                              '<button class="b" id="cnAtualizar">Atualizar</button>';
+                            $('#cnAtualizar').onclick = carregarConexao; carregarConexao(); }
+  if(v === 'equipe')      { $('#acoesTopo').innerHTML = ''; carregarEquipe(); }
+}
+
+/* ==================== conexao do whatsapp ====================
+   Esta tela nunca pode ficar em branco: ela sempre desenha o estado
+   (inclusive erro) e sempre oferece as acoes. O pareamento depende dela. */
+async function conexaoChamar(acao){
+  var r = await fetch('/api/crm-conexao', {method:'POST',
+    headers:{'Content-Type':'application/json'},
+    body: JSON.stringify({acao:acao, token:token})});
+  if(!r.ok) throw new Error('HTTP ' + r.status);
+  var j = await r.json();
+  if(j && j.ok === false){
+    if(j.erro === 'SESSAO_INVALIDA'){ guardar(''); mostrarAcesso(); throw new Error('sessao'); }
+    throw new Error(j.erro || 'erro');
+  }
+  return j;
+}
+
+function conexaoDesenhar(c, erro, carregando){
+  var estado, cor, texto, miolo = '';
+
+  if(carregando){ estado = 'Consultando...'; cor = 'var(--ink3)'; texto = 'falando com o WhatsApp'; }
+  else if(erro){ estado = 'Nao consegui consultar'; cor = 'var(--risco)'; texto = erro; }
+  else if(c.conectado){
+    estado = 'Conectado'; cor = 'var(--verde)';
+    texto = 'o agente esta recebendo e respondendo mensagens';
+    miolo =
+      '<div class="item" style="margin-top:16px"><span>Numero</span><b>' +
+        esc((c.numero||'').split('@')[0] || '-') + '</b></div>' +
+      '<div class="item"><span>Perfil</span><b>' + esc(c.perfil || '-') + '</b></div>' +
+      '<div class="item"><span>Estado tecnico</span><b>' + esc(c.status) + '</b></div>';
+  }
+  else if(c.qr){
+    estado = 'Escaneie o codigo'; cor = 'var(--azul)';
+    texto = 'o agente conecta assim que voce ler o QR';
+    miolo =
+      '<ol style="margin:16px 0 14px;padding-left:20px;color:var(--ink2);font-size:13px;line-height:1.9">' +
+        '<li>Abra o WhatsApp no celular</li>' +
+        '<li>Toque em <b>Aparelhos conectados</b></li>' +
+        '<li>Toque em <b>Conectar aparelho</b></li>' +
+        '<li>Aponte a camera para o codigo abaixo</li></ol>' +
+      '<div style="background:#fff;padding:16px;border-radius:var(--r2);display:inline-block;' +
+        'box-shadow:var(--sombra)">' +
+        '<img src="' + esc(c.qr) + '" alt="QR Code para conectar o WhatsApp" ' +
+        'style="width:260px;height:260px;display:block"></div>' +
+      '<p class="dica" style="margin-top:12px">O codigo expira rapido e se renova sozinho a cada 20 segundos.</p>';
+  }
+  else {
+    estado = esc(c.rotulo || 'Desconectado'); cor = 'var(--alerta)';
+    texto = 'aguardando o WhatsApp gerar um codigo, isso leva alguns segundos';
+  }
+
+  var podeDesconectar = !!(c && c.conectado);
+  $('#sub').textContent = carregando ? 'consultando...' : (erro ? 'erro' : (c.rotulo || ''));
+
+  $('#v-conexao').innerHTML =
+    '<div class="bloco" style="max-width:560px">' +
+      '<div style="display:flex;align-items:center;gap:13px">' +
+        '<span style="width:12px;height:12px;border-radius:50%;background:' + cor + ';flex:none"></span>' +
+        '<div><div style="font-size:20px;font-weight:700;color:' + cor + '">' + estado + '</div>' +
+        '<div style="color:var(--ink2);font-size:13px">' + esc(texto) + '</div></div></div>' +
+      miolo +
+      '<div style="margin-top:18px;border-top:1px solid var(--linha);padding-top:14px">' +
+        '<div class="acoes">' +
+          '<button class="b pri" id="cnRecarregar">Atualizar agora</button>' +
+          '<button class="b" id="cnSair"' + (podeDesconectar ? '' : ' disabled') + '>' +
+            'Desconectar este WhatsApp</button>' +
+        '</div>' +
+        '<p class="dica" style="margin:10px 0 0">' +
+          (podeDesconectar
+            ? 'Desconectar derruba o agente ate alguem escanear o QR de novo. Tenha o celular em maos.'
+            : 'O botao de desconectar so vale quando ha um WhatsApp conectado.') +
+        '</p>' +
+      '</div>' +
+    '</div>';
+
+  $('#cnRecarregar').onclick = carregarConexao;
+
+  var bs = $('#cnSair');
+  if(bs && podeDesconectar) bs.onclick = async function(){
+    if(!confirm('Desconectar o WhatsApp?\n\nO agente para de responder ate voce escanear o QR novamente.')) return;
+    bs.disabled = true; bs.textContent = 'Desconectando...';
+    try {
+      await conexaoChamar('desconectar');
+      aviso('Desconectado. O QR aparece em instantes.');
+    } catch(e){ if(e.message !== 'sessao') aviso('Falha ao desconectar: ' + e.message); }
+    setTimeout(carregarConexao, 2500);
+  };
+}
+
+async function carregarConexao(){
+  conexaoDesenhar(null, null, true);
+  try {
+    var c = await conexaoChamar('conexao');
+
+    /* Sessao parada ou em falha nao gera QR sozinha. Em vez de mostrar um erro
+       tecnico e deixar o usuario travado, religamos e buscamos o codigo de novo.
+       O guarda de 30s evita religar em loop. */
+    if(c.parado && (Date.now() - (carregarConexao._religou || 0) > 30000)){
+      carregarConexao._religou = Date.now();
+      conexaoDesenhar(null, null, true);
+      aviso('Religando a sessao para gerar o QR...');
+      try { await conexaoChamar('iniciar'); } catch(e){ if(e.message === 'sessao') return; }
+      await new Promise(function(r){ setTimeout(r, 7000); });
+      try { c = await conexaoChamar('conexao'); } catch(e){ if(e.message === 'sessao') return; }
+    }
+
+    conexaoDesenhar(c, null, false);
+  }
+  catch(e){ if(e.message !== 'sessao') conexaoDesenhar(null, e.message, false); }
+}
+
+function acoesKanban(){
+  $('#acoesTopo').innerHTML =
+    '<input class="campo" type="search" id="busca" placeholder="Buscar por nome, telefone ou mensagem">';
+  $('#busca').oninput = desenhar;
+}
+function acoesDash(){
+  $('#acoesTopo').innerHTML =
+    '<select class="campo" id="perDias" style="min-width:auto">' +
+      '<option value="7">7 dias</option><option value="14" selected>14 dias</option>' +
+      '<option value="30">30 dias</option><option value="90">90 dias</option></select>';
+  $('#perDias').onchange = carregarDash;
+}
+
+/* ==================== kanban ==================== */
+function idade(min){
+  if(min == null) return '';
+  if(min < 1) return 'agora';
+  if(min < 60) return min + ' min';
+  if(min < 1440) return Math.floor(min/60) + ' h';
+  return Math.floor(min/1440) + ' d';
+}
+function cardHtml(c){
+  var t = [];
+  if(c.pausado)     t.push('<span class="tag pausa">bot pausado</span>');
+  if(c.treinamento) t.push('<span class="tag trein">' + esc(c.treinamento) + '</span>');
+  if(c.responsavel) t.push('<span class="tag resp">' + esc(c.responsavel) + '</span>');
+  if(c.idioma)      t.push('<span class="tag">' + esc(c.idioma) + '</span>');
+  var seta = c.ultima_direcao === 'saida' ? '&rarr; ' : '';
+  return '<article class="card" draggable="true" data-chat="' + esc(c.chat_id) + '">' +
+    '<div class="ctop">' + avatarHtml(c) +
+      '<div class="quem"><span class="fone' + (identificado(c) ? '' : ' oculto') + '" title="' +
+        esc(contatoTitulo(c)) + '">' + esc(contatoTitulo(c)) + '</span>' +
+        (contatoSub(c) ? '<div class="sub">' + esc(contatoSub(c)) + '</div>' : '') + '</div>' +
+      '<span class="idade">' + esc(idade(c.minutos)) + '</span></div>' +
+    '<div class="msg">' + seta + esc(c.ultima_mensagem || 'sem mensagem') + '</div>' +
+    (t.length ? '<div class="tags">' + t.join('') + '</div>' : '') + '</article>';
+}
+function desenhar(){
+  if(vista !== 'kanban') return;
+  var bu = $('#busca'), f = bu ? bu.value.trim().toLowerCase() : '';
+  var cards = dados.cards.filter(function(c){
+    var fd = f.replace(/\D/g, '');
+    return !f || contatoBusca(c).indexOf(f) >= 0 ||
+      (fd.length >= 3 && (c.telefone||'').indexOf(fd) >= 0) ||
+      (c.ultima_mensagem||'').toLowerCase().indexOf(f) >= 0;
+  });
+  document.documentElement.style.setProperty('--cols', dados.estagios.length || 6);
+  $('#quadro').innerHTML = dados.estagios.map(function(e){
+    var meus = cards.filter(function(c){ return c.estagio === e.estagio; });
+    return '<section class="col">' +
+      '<div class="colh"><span class="pt" style="--c:' + esc(e.cor) +
+        ';--cd:' + esc(e.cor_escura || e.cor) + '"></span>' +
+      '<span class="colt">' + esc(e.titulo) + '</span>' +
+      '<span class="cnt">' + meus.length + '</span></div>' +
+      '<div class="drop" data-estagio="' + esc(e.estagio) + '">' +
+      (meus.length ? meus.map(cardHtml).join('') : '<div class="vazio">vazio</div>') +
+      '</div></section>';
+  }).join('');
+  $('#sub').textContent = dados.cards.length + ' conversas, ' +
+                          (dados.agenda||[]).length + ' treinamentos marcados';
+  ligar();
+}
+function ligar(){
+  document.querySelectorAll('.card').forEach(function(el){
+    el.addEventListener('dragstart', function(ev){
+      arrastando = true; el.classList.add('dragging');
+      ev.dataTransfer.setData('text/plain', el.dataset.chat); });
+    el.addEventListener('dragend', function(){ arrastando = false; el.classList.remove('dragging'); });
+    el.addEventListener('click', function(){ abrir(el.dataset.chat); });
+  });
+  document.querySelectorAll('.drop').forEach(function(z){
+    z.addEventListener('dragover', function(ev){ ev.preventDefault(); z.classList.add('over'); });
+    z.addEventListener('dragleave', function(){ z.classList.remove('over'); });
+    z.addEventListener('drop', async function(ev){
+      ev.preventDefault(); z.classList.remove('over');
+      var chat = ev.dataTransfer.getData('text/plain'), estagio = z.dataset.estagio;
+      var card = dados.cards.find(function(c){ return c.chat_id === chat; });
+      if(!card || card.estagio === estagio) return;
+      card.estagio = estagio; desenhar();
+      try { await api('mover', {chat_id:chat, estagio:estagio}); } catch(e){ falhou(e,'Nao movi'); }
+      carregar();
+    });
+  });
+}
+async function carregar(){
+  if(arrastando) return;
+  try {
+    var j = await api('listar');
+    dados = j;
+    if(j.usuario && !$('#quem').textContent.trim()) identificar(j.usuario);
+    if(vista === 'kanban') desenhar();
+    if(atual) pintar(false);
+  } catch(e){ falhou(e, 'Falha ao carregar'); }
+}
+
+/* ==================== dashboard ==================== */
+function num(v){ return v == null ? '-' : String(v); }
+function kpi(rot, valor, pe, bom){
+  return '<div class="bloco kpi' + (bom ? ' bom' : '') + '"><div class="rot">' + esc(rot) + '</div>' +
+         '<div class="num">' + esc(num(valor)) + '</div>' +
+         '<div class="pe">' + esc(pe || '') + '</div></div>';
+}
+function barrasV(lista, cada){
+  if(!lista.length) return '<div class="vazio">sem dados no periodo</div>';
+  var max = Math.max.apply(null, lista.map(function(d){ return d.qtd; }).concat([1]));
+  return '<div class="gr">' + lista.map(function(d, i){
+    var h = Math.round(d.qtd / max * 100);
+    return '<div class="br" title="' + esc(d.rotulo) + ': ' + d.qtd + '">' +
+             '<div class="bv" style="height:' + h + '%"></div>' +
+             '<span class="bl">' + ((i % cada === 0) ? esc(d.rotulo) : '') + '</span>' +
+           '</div>';
+  }).join('') + '</div><div class="eixo"></div>';
+}
+function barrasH(lista, usarCor){
+  if(!lista.length) return '<div class="vazio">sem dados no periodo</div>';
+  var max = Math.max.apply(null, lista.map(function(d){ return d.qtd; }).concat([1]));
+  return lista.map(function(d){
+    var w = Math.round(d.qtd / max * 100);
+    var cor = usarCor && d.cor ? ';background:' + esc(d.cor) : '';
+    return '<div class="bh"><span class="bhr">' + esc(d.rotulo) + '</span>' +
+           '<span class="bht"><i style="width:' + w + '%' + cor + '"></i></span>' +
+           '<span class="bhv">' + d.qtd + '</span></div>';
+  }).join('');
+}
+async function carregarDash(){
+  var sel = $('#perDias');
+  try { dash = await api('dashboard', {dias: sel ? Number(sel.value) : 14}); }
+  catch(e){ falhou(e, 'Falha no dashboard'); return; }
+  var k = dash.kpis;
+  $('#sub').textContent = 'ultimos ' + dash.dias + ' dias, atualizado ' + dash.gerado_em;
+  $('#v-dashboard').innerHTML =
+    '<div class="grade g4" style="margin-bottom:14px">' +
+      kpi('Conversas no periodo', k.conversas, k.novas + ' novas') +
+      kpi('Resolvidas sem humano', k.autonomia == null ? '-' : k.autonomia + '%',
+          k.com_humano + ' precisaram de atendente', true) +
+      kpi('Resposta media do bot', k.resposta_seg == null ? '-' : k.resposta_seg + 's',
+          k.recebidas + ' recebidas, ' + k.enviadas + ' enviadas') +
+      kpi('Treinamentos', k.futuros, k.marcados + ' marcados, ' + k.cancelados + ' cancelados') +
+    '</div>' +
+    '<div class="grade g4" style="margin-bottom:14px">' +
+      kpi('Na fila do humano', k.fila_agora, 'aguardando agora') +
+      kpi('Bot pausado', k.pausados_agora, 'conversas com atendente') +
+    '</div>' +
+    '<div class="grade g2">' +
+      '<div class="bloco"><h3>Mensagens recebidas por dia</h3>' +
+        '<p class="dica">volume de entrada, passe o mouse para ver o numero</p>' +
+        barrasV(dash.por_dia, Math.max(1, Math.ceil(dash.por_dia.length / 7))) + '</div>' +
+      '<div class="bloco"><h3>Movimento por hora do dia</h3>' +
+        '<p class="dica">quando concentrar a equipe</p>' +
+        barrasV(dash.por_hora, 3) + '</div>' +
+      '<div class="bloco"><h3>Situacao das conversas</h3>' +
+        '<p class="dica">distribuicao atual no funil</p>' +
+        barrasH(dash.estagios, true) + '</div>' +
+      '<div class="bloco"><h3>Assuntos mais pedidos</h3>' +
+        '<p class="dica">a partir dos audios enviados</p>' +
+        barrasH(dash.temas, false) +
+        '<h3 style="margin-top:16px">Idioma dos clientes</h3>' +
+        '<p class="dica">deteccao automatica</p>' +
+        barrasH(dash.idiomas, false) + '</div>' +
+    '</div>';
+}
+
+/* ==================== agenda + calendario ==================== */
+var MES = ['janeiro','fevereiro','marco','abril','maio','junho','julho','agosto',
+           'setembro','outubro','novembro','dezembro'];
+function pdata(s){ // "DD/MM/YYYY HH:MM"
+  var m = /^(\d{2})\/(\d{2})\/(\d{4}) (\d{2}):(\d{2})/.exec(s || '');
+  return m ? new Date(+m[3], +m[2]-1, +m[1], +m[4], +m[5]) : null;
+}
+async function carregarAgenda(){
+  try { rel = await api('relatorio', {tipo:'treinamentos', dias:365}); }
+  catch(e){ falhou(e, 'Falha na agenda'); return; }
+  desenharAgenda();
+}
+function desenharAgenda(){
+  if(!rel) return;
+  var evs = (rel.linhas || []).map(function(l){
+    return {quando: pdata(l[0]), texto: l[0], fone: l[1], situacao: l[2]};
+  }).filter(function(e){ return e.quando; });
+
+  var ano = mesCal.getFullYear(), mes = mesCal.getMonth();
+  var prim = new Date(ano, mes, 1), ini = new Date(prim);
+  ini.setDate(1 - prim.getDay());
+  var hoje = new Date(); hoje.setHours(0,0,0,0);
+
+  var celulas = '';
+  for(var i = 0; i < 42; i++){
+    var d = new Date(ini); d.setDate(ini.getDate() + i);
+    var doDia = evs.filter(function(e){
+      return e.quando.getFullYear()===d.getFullYear() && e.quando.getMonth()===d.getMonth()
+          && e.quando.getDate()===d.getDate() && e.situacao === 'confirmado'; });
+    celulas += '<div class="celula' + (d.getMonth()!==mes ? ' fora':'') +
+      (d.getTime()===hoje.getTime() ? ' hoje':'') + '">' +
+      '<span class="dn">' + d.getDate() + '</span>' +
+      doDia.map(function(e){
+        // e.fone = "Nome · +55..." / "+55..." / "numero oculto (ID ...)"
+        var curto = e.fone.indexOf(' · ') > 0 ? e.fone.split(' · ')[0].split(' ')[0]
+                  : (e.fone.replace(/\D/g, '').slice(-4) || e.fone);
+        return '<span class="ev" title="' + esc(e.fone) + '">' +
+               esc(e.texto.slice(11,16)) + ' ' + esc(curto) + '</span>'; }).join('') +
+      '</div>';
+  }
+  var futuros = evs.filter(function(e){ return e.situacao==='confirmado' && e.quando >= new Date(); })
+                   .sort(function(a,b){ return a.quando - b.quando; });
+  $('#sub').textContent = futuros.length + ' treinamentos confirmados a frente';
+
+  $('#v-agenda').innerHTML =
+    '<div class="bloco" style="margin-bottom:14px">' +
+      '<div style="display:flex;align-items:center;gap:10px;margin-bottom:14px">' +
+        '<h3 style="margin:0;text-transform:capitalize">' + MES[mes] + ' de ' + ano + '</h3>' +
+        '<span class="cresce"></span>' +
+        '<button class="b mini" id="mAnt">Anterior</button>' +
+        '<button class="b mini" id="mHoje">Hoje</button>' +
+        '<button class="b mini" id="mProx">Proximo</button></div>' +
+      '<div class="cal">' + ['dom','seg','ter','qua','qui','sex','sab'].map(function(d){
+        return '<div class="cald">' + d + '</div>'; }).join('') + celulas + '</div></div>' +
+    '<div class="bloco"><h3>Proximos treinamentos</h3>' +
+      '<p class="dica">confirmados, do mais proximo ao mais distante</p>' +
+      (futuros.length ? '<div class="rol"><table><tr><th>Quando</th><th>Contato</th></tr>' +
+        futuros.map(function(e){ return '<tr><td>' + esc(e.texto) + '</td><td>' +
+          esc(e.fone) + '</td></tr>'; }).join('') + '</table></div>'
+        : '<div class="vazio">nenhum treinamento marcado</div>') + '</div>';
+
+  $('#mAnt').onclick  = function(){ mesCal = new Date(ano, mes-1, 1); desenharAgenda(); };
+  $('#mProx').onclick = function(){ mesCal = new Date(ano, mes+1, 1); desenharAgenda(); };
+  $('#mHoje').onclick = function(){ mesCal = new Date(); desenharAgenda(); };
+}
+
+/* ==================== relatorios ==================== */
+function desenharRelatorios(){
+  $('#sub').textContent = 'exporte os dados para planilha';
+  $('#v-relatorios').innerHTML =
+    '<div class="bloco" style="margin-bottom:14px">' +
+      '<h3>Gerar relatorio</h3><p class="dica">os dados saem em CSV, abre direto no Excel</p>' +
+      '<div class="acoes">' +
+        '<select class="campo" id="relTipo" style="min-width:auto">' +
+          '<option value="conversas">Conversas</option>' +
+          '<option value="mensagens">Mensagens</option>' +
+          '<option value="treinamentos">Treinamentos</option></select>' +
+        '<select class="campo" id="relDias" style="min-width:auto">' +
+          '<option value="7">7 dias</option><option value="30" selected>30 dias</option>' +
+          '<option value="90">90 dias</option><option value="365">1 ano</option></select>' +
+        '<button class="b pri" id="relVer">Ver</button>' +
+        '<button class="b" id="relCsv">Baixar CSV</button>' +
+      '</div></div>' +
+    '<div id="relSaida"></div>';
+  $('#relVer').onclick = verRelatorio;
+  $('#relCsv').onclick = baixarCsv;
+}
+async function pegarRel(){
+  return api('relatorio', {tipo:$('#relTipo').value, dias:Number($('#relDias').value)});
+}
+async function verRelatorio(){
+  try { var j = await pegarRel(); } catch(e){ falhou(e,'Falha no relatorio'); return; }
+  var linhas = j.linhas || [];
+  $('#relSaida').innerHTML = '<div class="bloco"><h3>' + esc(j.tipo) + '</h3>' +
+    '<p class="dica">' + linhas.length + ' registros nos ultimos ' + j.dias + ' dias</p>' +
+    (linhas.length ? '<div class="rol"><table><tr>' +
+      j.colunas.map(function(c){ return '<th>' + esc(c) + '</th>'; }).join('') + '</tr>' +
+      linhas.slice(0,200).map(function(l){ return '<tr>' +
+        l.map(function(v){ return '<td>' + esc(v) + '</td>'; }).join('') + '</tr>'; }).join('') +
+      '</table></div>' + (linhas.length > 200 ? '<p class="dica">mostrando os 200 primeiros, o CSV traz tudo</p>' : '')
+      : '<div class="vazio">nada no periodo</div>') + '</div>';
+}
+async function baixarCsv(){
+  try { var j = await pegarRel(); } catch(e){ falhou(e,'Falha no relatorio'); return; }
+  var esq = function(v){ var s = String(v == null ? '' : v);
+    return /[";\n]/.test(s) ? '"' + s.replace(/"/g,'""') + '"' : s; };
+  var csv = [j.colunas.map(esq).join(';')]
+    .concat((j.linhas||[]).map(function(l){ return l.map(esq).join(';'); })).join('\r\n');
+  var a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob(['﻿' + csv], {type:'text/csv;charset=utf-8'}));
+  a.download = 'crm-' + j.tipo + '-' + j.dias + 'dias.csv';
+  document.body.appendChild(a); a.click(); a.remove();
+  aviso('CSV gerado');
+}
+
+/* ==================== equipe ==================== */
+async function carregarEquipe(){
+  try { equipe = await api('equipe'); } catch(e){ falhou(e,'Falha na equipe'); return; }
+  $('#sub').textContent = equipe.usuarios.length + ' usuarios com acesso';
+  $('#v-equipe').innerHTML =
+    '<div class="bloco" style="margin-bottom:14px"><h3>Quem tem acesso</h3>' +
+      '<p class="dica">senhas ficam em hash, ninguem consegue le-las</p>' +
+      '<div class="rol"><table><tr><th>Usuario</th><th>Nome</th><th>Ultimo acesso</th></tr>' +
+      equipe.usuarios.map(function(u){ return '<tr><td>' + esc(u.usuario) + '</td><td>' +
+        esc(u.nome) + '</td><td>' + esc(u.ultimo_acesso || 'nunca') + '</td></tr>'; }).join('') +
+      '</table></div></div>' +
+    '<div class="bloco"><h3>Adicionar pessoa</h3>' +
+      '<p class="dica">senha de 8 caracteres ou mais</p>' +
+      '<div class="acoes">' +
+        '<input class="campo" id="nvUser" placeholder="usuario" autocomplete="off">' +
+        '<input class="campo" id="nvNome" placeholder="nome" autocomplete="off">' +
+        '<input class="campo" id="nvSenha" type="password" placeholder="senha" autocomplete="new-password">' +
+        '<button class="b pri" id="nvCriar">Criar acesso</button></div></div>';
+  $('#nvCriar').onclick = async function(){
+    try {
+      await api('criar_usuario', {usuario:$('#nvUser').value.trim(),
+                                  nome:$('#nvNome').value.trim(), senha:$('#nvSenha').value});
+      aviso('Acesso criado'); carregarEquipe();
+    } catch(e){ aviso(ERROS[e.message] || ('Nao criei: ' + e.message)); }
+  };
+}
+
+/* ==================== gaveta ==================== */
+async function abrir(chat){
+  atual = chat; notaSuja = false;
+  $('#drawer').classList.add('open'); $('#mask').classList.add('on');
+  await pintar(true);
+}
+function fechar(){ atual = null;
+  $('#drawer').classList.remove('open'); $('#mask').classList.remove('on'); }
+async function pintar(recarregar){
+  var c = dados.cards.find(function(x){ return x.chat_id === atual; });
+  if(!c){ fechar(); return; }
+  $('#dfone').textContent = contatoTitulo(c);
+  if(notaSuja) return;
+  var conv = pintar._conv;
+  if(recarregar || !conv){
+    try { conv = await api('conversa', {chat_id:atual}); } catch(e){ conv = {mensagens:[]}; }
+  }
+  pintar._conv = conv;
+  var msgs = conv.mensagens || [];
+  var tel = String(c.telefone || '').replace(/\D/g, '');
+  $('#dbody').innerHTML =
+    '<div class="bloco"><h3>Contato</h3>' +
+      '<div style="display:flex;gap:12px;align-items:center;margin-bottom:10px">' + avatarHtml(c, true) +
+        '<div class="quem"><span class="fone" style="font-size:15px">' + esc(contatoTitulo(c)) + '</span>' +
+        (contatoSub(c) ? '<div class="sub">' + esc(contatoSub(c)) + '</div>' : '') + '</div></div>' +
+      '<div class="item"><span>Nome no WhatsApp</span><b>' + esc(c.nome_whatsapp || '—') + '</b></div>' +
+      (c.nome && c.nome !== c.nome_whatsapp
+        ? '<div class="item"><span>Nome na equipe</span><b>' + esc(c.nome) + '</b></div>' : '') +
+      '<div class="item"><span>Telefone</span><b>' + (tel
+        ? '<a href="https://wa.me/' + esc(tel) + '" target="_blank" rel="noopener" title="Abrir no WhatsApp">' +
+            esc(foneFmt(tel)) + '</a><button class="copiar" id="btCopiar" data-v="+' + esc(tel) + '">Copiar</button>'
+        : 'aguardando o WhatsApp informar') + '</b></div>' +
+      (idWhats(c) && !tel ? '<div class="item"><span>ID do WhatsApp</span><b>' + esc(idWhats(c)) +
+        '<button class="copiar" id="btCopiar" data-v="' + esc(idWhats(c)) + '">Copiar</button></b></div>'
+        : (c.lid ? '<div class="item"><span>ID do WhatsApp</span><b>' + esc(c.lid) + '</b></div>' : '')) +
+      (!tel ? '<p class="dica">O WhatsApp esconde o número de alguns contatos. Ele aparece aqui ' +
+              'automaticamente na próxima mensagem do cliente, quando o WhatsApp informar.</p>' : '') +
+    '</div>' +
+    '<div class="bloco"><h3>Situacao</h3>' +
+      '<div class="item"><span>Estagio</span><b>' + esc(c.estagio) + '</b></div>' +
+      '<div class="item"><span>Bot</span><b>' + (c.pausado ? 'pausado' : 'ativo') + '</b></div>' +
+      '<div class="item"><span>Responsavel</span><b>' + esc(c.responsavel || '-') + '</b></div>' +
+      '<div class="item"><span>Idioma</span><b>' + esc(c.idioma || '-') + '</b></div>' +
+      '<div class="item"><span>Treinamento</span><b>' + esc(c.treinamento || 'nao agendado') + '</b></div>' +
+      '<div class="item"><span>Mensagens</span><b>' + c.total_entrada + ' recebidas / ' +
+        c.total_saida + ' enviadas</b></div>' +
+      '<div class="item"><span>Ultimo contato</span><b>' + esc(idade(c.minutos)) + '</b></div></div>' +
+    '<div class="bloco"><h3>Acoes</h3><div class="acoes">' +
+      '<button class="b" id="btAssumir">Assumir (pausa o bot)</button>' +
+      '<button class="b" id="btDevolver">Devolver ao bot</button>' +
+      '<button class="b pri" id="btResolver">Resolver</button></div></div>' +
+    '<div class="bloco"><h3>Nota interna</h3>' +
+      '<textarea id="nota" placeholder="visivel apenas para a equipe">' + esc(c.notas||'') + '</textarea>' +
+      '<div class="acoes" style="margin-top:9px"><button class="b" id="btNota">Salvar nota</button></div></div>' +
+    '<div class="bloco"><h3>Conversa</h3><div class="chat">' +
+      (msgs.length ? msgs.map(function(m){
+        return '<div class="bolha ' + esc(m.direcao) + (m.origem==='humano' ? ' humano':'') + '">' +
+          esc(m.texto || (m.audio ? 'audio enviado' : 'midia')) +
+          '<small>' + esc(m.quando) + ' - ' + esc(m.origem) + '</small></div>'; }).join('')
+        : '<div class="vazio">sem historico registrado</div>') + '</div></div>';
+
+  var bc = $('#btCopiar');
+  if(bc) bc.onclick = async function(){
+    try { await navigator.clipboard.writeText(bc.dataset.v); aviso('Número copiado'); }
+    catch(e){ aviso(bc.dataset.v); } };
+  $('#nota').addEventListener('input', function(){ notaSuja = true; });
+  $('#btNota').onclick = async function(){
+    try { await api('nota', {chat_id:atual, notas:$('#nota').value});
+          notaSuja = false; aviso('Nota salva'); carregar(); } catch(e){ falhou(e,'Nao salvei'); } };
+  $('#btAssumir').onclick = async function(){
+    try { aviso((await api('assumir',{chat_id:atual})).aviso || 'ok'); carregar(); }
+    catch(e){ falhou(e,'Falhou'); } };
+  $('#btDevolver').onclick = async function(){
+    try { aviso((await api('devolver',{chat_id:atual})).aviso || 'ok'); carregar(); }
+    catch(e){ falhou(e,'Falhou'); } };
+  $('#btResolver').onclick = async function(){
+    try { await api('resolver',{chat_id:atual}); aviso('Resolvido'); fechar(); carregar(); }
+    catch(e){ falhou(e,'Falhou'); } };
+}
+$('#dfechar').onclick = fechar;
+$('#mask').onclick = fechar;
+document.addEventListener('keydown', function(e){ if(e.key === 'Escape') fechar(); });
+
+/* ==================== inicio ==================== */
+(async function(){
+  if(!token){ mostrarAcesso(); return; }
+  try {
+    var j = await api('listar');
+    dados = j; $('#app').hidden = false;
+    identificar(j.usuario); acoesKanban(); desenhar();
+  } catch(e){ if(e.message !== 'sessao') mostrarAcesso(); }
+})();
+/* Atualizacao automatica.
+   So roda com a aba visivel: painel aberto num monitor esquecido nao fica
+   criando execucao no n8n a toa. Ao voltar para a aba, atualiza na hora. */
+function abaVisivel(){
+  return document.visibilityState !== 'hidden';
+}
+function ativo(){
+  return token && !$('#app').hidden && abaVisivel();
+}
+setInterval(function(){
+  if(ativo() && vista === 'kanban') carregar();
+}, 45000);
+
+/* o QR expira sozinho, entao essa tela precisa de ritmo mais curto */
+setInterval(function(){
+  if(ativo() && vista === 'conexao') carregarConexao();
+}, 20000);
+
+document.addEventListener('visibilitychange', function(){
+  if(!abaVisivel() || !token || $('#app').hidden) return;
+  if(vista === 'kanban')  carregar();
+  if(vista === 'conexao') carregarConexao();
+});
+</script>
+</body>
+</html>
